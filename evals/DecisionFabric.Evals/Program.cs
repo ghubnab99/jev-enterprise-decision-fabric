@@ -18,6 +18,11 @@ internal static class Program
                 return await RunComparisonAsync(args[1..]);
             }
 
+            if (args.Length > 0 && args[0] == "rebuild-report")
+            {
+                return await ReportRebuilder.RunAsync(args[1..]);
+            }
+
             var options = RunnerOptions.Parse(args);
             var suite = ApplyRepetitionCap(
                 await EvaluationIo.LoadSuiteAsync(options.DatasetPath),
@@ -46,7 +51,7 @@ internal static class Program
 
             var allRuns = await RunSuiteAsync(suite, selection, options, outputPath);
             var failedCallCount = allRuns.Count(record => record.Response is null);
-            var report = EvaluationReportBuilder.Build(suite, allRuns, selection);
+            var report = EvaluationReportBuilder.Build(suite, allRuns, selection.Provenance);
             var reportPath = Path.GetFullPath(options.ReportPath);
             Directory.CreateDirectory(Path.GetDirectoryName(reportPath)!);
             await File.WriteAllTextAsync(
@@ -154,7 +159,7 @@ internal static class Program
     /// editing the dataset. Cases keep their relative depth: a 10-repetition
     /// stability case still outweighs a single-run breadth case.
     /// </summary>
-    private static EvaluationSuiteDefinition ApplyRepetitionCap(
+    internal static EvaluationSuiteDefinition ApplyRepetitionCap(
         EvaluationSuiteDefinition suite,
         int? maximumRepetitions) =>
         maximumRepetitions is not { } maximum
@@ -497,8 +502,17 @@ internal static class EvaluationConsole
         if (report.Accuracy is { } accuracyReport)
         {
             Console.WriteLine(
-                $"\ndisposition accuracy: {accuracyReport.CorrectRuns}/{accuracyReport.LabelledRuns} " +
+                $"\ndisposition accuracy (call-weighted): {accuracyReport.CorrectRuns}/{accuracyReport.LabelledRuns} " +
                 $"({accuracyReport.Accuracy:P2}) across {accuracyReport.LabelledCases} labelled cases");
+            if (report.CaseAccuracy is { } caseAccuracy)
+            {
+                Console.WriteLine(
+                    $"disposition accuracy (per case, {caseAccuracy.Method}): " +
+                    $"{caseAccuracy.CorrectCases}/{caseAccuracy.LabelledCases} ({caseAccuracy.Accuracy:P2}); " +
+                    $"unsafe-allow cases: {caseAccuracy.UnsafeAllowCases}, " +
+                    $"over-blocked cases: {caseAccuracy.OverBlockedCases}, " +
+                    $"unstable cases: {caseAccuracy.UnstableCases}");
+            }
             if (accuracyReport.UnsafeAllowRuns is { } unsafeAllows)
             {
                 Console.WriteLine(

@@ -3,17 +3,23 @@ using System.Text.Json;
 
 namespace DecisionFabric.Evals;
 
-internal sealed record FamilyAccuracy(string Family, int LabelledRuns, int CorrectRuns, double Accuracy);
-
 internal sealed record ProviderComparisonRow
 {
     public required string Provider { get; init; }
     public required string Model { get; init; }
     public required int SuccessfulRuns { get; init; }
     public required int FailedCalls { get; init; }
+
+    /// <summary>Call-weighted: repeats of one case each count.</summary>
+    public int? CorrectRuns { get; init; }
     public double? Accuracy { get; init; }
+    public int? UnsafeAllowRuns { get; init; }
     public double? UnsafeAllowRate { get; init; }
+    public int? OverBlockedRuns { get; init; }
     public double? OverBlockedRate { get; init; }
+
+    /// <summary>Case-weighted: each distinct labelled case counts once.</summary>
+    public required CaseLevelAccuracyReport CaseAccuracy { get; init; }
 
     /// <summary>Cases whose repeated runs did not all reach the same disposition.</summary>
     public required int UnstableCases { get; init; }
@@ -22,7 +28,7 @@ internal sealed record ProviderComparisonRow
     public required double LatencyP50 { get; init; }
     public required double LatencyP95 { get; init; }
     public double? CostPerDecisionUsd { get; init; }
-    public required IReadOnlyList<FamilyAccuracy> Families { get; init; }
+    public required IReadOnlyList<FamilyEvaluationReport> Families { get; init; }
 }
 
 internal sealed record BenchmarkComparison
@@ -58,7 +64,7 @@ internal static class BenchmarkComparisonBuilder
             }
 
             suiteId ??= report.SuiteId;
-            rows.Add(BuildRow(report));
+            rows.Add(BuildRow(report, path));
         }
 
         var comparison = new BenchmarkComparison
@@ -82,24 +88,11 @@ internal static class BenchmarkComparisonBuilder
         return 0;
     }
 
-    private static ProviderComparisonRow BuildRow(EvaluationReport report)
+    private static ProviderComparisonRow BuildRow(EvaluationReport report, string path)
     {
+        var caseAccuracy = report.CaseAccuracy ?? throw new InvalidOperationException(
+            $"Report '{path}' has no per-case accuracy. Regenerate it with 'rebuild-report' from its JSONL.");
         var repeated = report.Cases.Where(caseReport => caseReport.SuccessfulRuns > 1).ToArray();
-        var families = report.Cases
-            .Where(caseReport => caseReport.CorrectDispositionRuns is not null)
-            .GroupBy(caseReport => caseReport.Family, StringComparer.Ordinal)
-            .Select(group =>
-            {
-                var labelled = group.Sum(caseReport => caseReport.SuccessfulRuns);
-                var correct = group.Sum(caseReport => caseReport.CorrectDispositionRuns!.Value);
-                return new FamilyAccuracy(
-                    group.Key,
-                    labelled,
-                    correct,
-                    labelled == 0 ? double.NaN : (double)correct / labelled);
-            })
-            .OrderBy(family => family.Accuracy)
-            .ToArray();
 
         return new ProviderComparisonRow
         {
@@ -109,15 +102,19 @@ internal static class BenchmarkComparisonBuilder
                 : report.RequestedModel ?? "unknown",
             SuccessfulRuns = report.SuccessfulRuns,
             FailedCalls = report.FailedCalls,
+            CorrectRuns = report.Accuracy?.CorrectRuns,
             Accuracy = report.Accuracy?.Accuracy,
+            UnsafeAllowRuns = report.Accuracy?.UnsafeAllowRuns,
             UnsafeAllowRate = report.Accuracy?.UnsafeAllowRate,
+            OverBlockedRuns = report.Accuracy?.OverBlockedRuns,
             OverBlockedRate = report.Accuracy?.OverBlockedRate,
+            CaseAccuracy = caseAccuracy,
             UnstableCases = repeated.Count(caseReport => caseReport.ActionDispositionCounts.Count > 1),
             RepeatedCases = repeated.Length,
             LatencyP50 = report.Latency.P50,
             LatencyP95 = report.Latency.P95,
             CostPerDecisionUsd = report.CostPerDecisionUsd,
-            Families = families
+            Families = report.Families
         };
     }
 
@@ -125,44 +122,49 @@ internal static class BenchmarkComparisonBuilder
     {
         Console.WriteLine($"Suite: {comparison.SuiteId}\n");
         Console.WriteLine(
-            $"{"provider",-16} {"model",-22} {"runs",5} {"acc",7} {"unsafe",7} {"blocked",8} " +
-            $"{"unstable",9} {"p50 ms",7} {"p95 ms",7} {"$/decision",11}");
+            $"{"provider",-12} {"model",-14} {"calls",5} {"call acc",16} {"case acc",14} " +
+            $"{"unsafe calls",12} {"unsafe cases",12} {"unstable",9} {"p50 ms",7} {"p95 ms",7} {"$/decision",11}");
 
         foreach (var row in comparison.Providers)
         {
+            var cases = row.CaseAccuracy;
             Console.WriteLine(
-                $"{Truncate(row.Provider, 16),-16} {Truncate(row.Model, 22),-22} {row.SuccessfulRuns,5} " +
-                $"{Percent(row.Accuracy),7} {Percent(row.UnsafeAllowRate),7} {Percent(row.OverBlockedRate),8} " +
+                $"{Truncate(row.Provider, 12),-12} {Truncate(row.Model, 14),-14} {row.SuccessfulRuns,5} " +
+                $"{Ratio(row.CorrectRuns, row.SuccessfulRuns, row.Accuracy),16} " +
+                $"{Ratio(cases.CorrectCases, cases.LabelledCases, cases.Accuracy),14} " +
+                $"{$"{row.UnsafeAllowRuns}/{row.SuccessfulRuns}",12} " +
+                $"{$"{cases.UnsafeAllowCases}/{cases.LabelledCases}",12} " +
                 $"{$"{row.UnstableCases}/{row.RepeatedCases}",9} {row.LatencyP50,7:F0} {row.LatencyP95,7:F0} " +
-                $"{(row.CostPerDecisionUsd is { } cost ? cost.ToString("F6", CultureInfo.InvariantCulture) : "-"),11}");
+                $"{(row.CostPerDecisionUsd is { } cost ? cost.ToString("F6", CultureInfo.InvariantCulture) : "n/a"),11}");
         }
 
-        Console.WriteLine("\nper-family accuracy (worst first)");
+        Console.WriteLine("\nper-family accuracy: correct cases/cases [correct calls/calls], sorted by name");
         var allFamilies = comparison.Providers
             .SelectMany(row => row.Families.Select(family => family.Family))
             .Distinct(StringComparer.Ordinal)
+            .Order(StringComparer.Ordinal)
             .ToArray();
         Console.WriteLine(
-            $"{"family",-30} " +
-            string.Join(" ", comparison.Providers.Select(row => $"{Truncate(row.Provider, 14),14}")));
+            $"{"family",-34} " +
+            string.Join(" ", comparison.Providers.Select(row => $"{Truncate(row.Provider, 20),20}")));
 
-        foreach (var family in allFamilies.OrderBy(family => comparison.Providers
-            .Select(row => row.Families.FirstOrDefault(entry => entry.Family == family)?.Accuracy ?? 1)
-            .Min()))
+        foreach (var family in allFamilies)
         {
             var cells = comparison.Providers.Select(row =>
             {
                 var entry = row.Families.FirstOrDefault(item => item.Family == family);
                 return entry is null
-                    ? $"{"-",14}"
-                    : $"{$"{entry.Accuracy:P0} ({entry.CorrectRuns}/{entry.LabelledRuns})",14}";
+                    ? $"{"-",20}"
+                    : $"{$"{entry.CorrectCases}/{entry.LabelledCases} [{entry.CorrectRuns}/{entry.LabelledRuns}]",20}";
             });
-            Console.WriteLine($"{Truncate(family, 30),-30} {string.Join(" ", cells)}");
+            Console.WriteLine($"{family,-34} {string.Join(" ", cells)}");
         }
     }
 
-    private static string Percent(double? value) =>
-        value is { } number ? number.ToString("P1", CultureInfo.InvariantCulture) : "-";
+    private static string Ratio(int? correct, int total, double? rate) =>
+        correct is { } count && rate is { } value
+            ? $"{count}/{total} {value.ToString("P1", CultureInfo.InvariantCulture)}"
+            : "-";
 
     private static string Truncate(string value, int length) =>
         value.Length <= length ? value : value[..length];

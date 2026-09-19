@@ -12,18 +12,27 @@ internal sealed record ProviderPricing(double InputPerMillion, double OutputPerM
         (inputTokens * InputPerMillion / 1_000_000) + (outputTokens * OutputPerMillion / 1_000_000);
 }
 
+/// <summary>What a report says about who answered: enough to cost and label a run.</summary>
+internal sealed record ReportProvenance(string Label, string Model, ProviderPricing? Pricing);
+
 internal sealed record ProviderSelection(
     IDecisionProvider Provider,
     string Label,
     string Model,
     ProviderPricing? Pricing,
-    IDisposable? Lifetime);
+    IDisposable? Lifetime)
+{
+    public ReportProvenance Provenance => new(Label, Model, Pricing);
+}
 
 internal static class Providers
 {
     /// <summary>
-    /// Claude list prices as of 2026-09. TypeSafe does not publish per-token prices,
-    /// so a Jev run reports tokens and latency but no cost unless one is supplied.
+    /// Claude first-party list prices (USD per million base input / output tokens),
+    /// checked against https://platform.claude.com/docs/en/about-claude/pricing on
+    /// 2026-09-19. Runs send no cache_control, so no cache write or read rates apply.
+    /// TypeSafe does not publish per-token prices, so a Jev run reports tokens and
+    /// latency but no cost unless one is supplied.
     /// </summary>
     private static readonly Dictionary<string, ProviderPricing> ClaudePricing =
         new Dictionary<string, ProviderPricing>(StringComparer.Ordinal)
@@ -36,6 +45,10 @@ internal static class Providers
 
     public const string Jev = "jev";
     public const string Claude = "claude";
+
+    /// <summary>The published list price for a Claude model, or null when none is known.</summary>
+    public static ProviderPricing? ClaudeListPrice(string model) =>
+        ClaudePricing.GetValueOrDefault(model);
 
     /// <summary>
     /// Finds a provider's key without requiring a global environment variable.
@@ -111,13 +124,11 @@ internal static class Providers
         }
 
         var client = new AnthropicClient { ApiKey = apiKey };
-        ClaudePricing.TryGetValue(model, out var listPrice);
-
         return new ProviderSelection(
             new ClaudeDecisionProvider(client, clientOptions),
             clientOptions.Effort is null ? Claude : $"{Claude}/{clientOptions.Effort}",
             model,
-            options.Pricing ?? listPrice,
+            options.Pricing ?? ClaudeListPrice(model),
             null);
     }
 }
