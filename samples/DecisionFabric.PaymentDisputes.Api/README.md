@@ -34,6 +34,26 @@ export TYPESAFE_API_KEY="..."
 dotnet run --project samples/DecisionFabric.PaymentDisputes.Api
 ```
 
+## Policy configuration
+
+The card-block gate thresholds are validated configuration, not code:
+
+```json
+"DecisionFabric": {
+  "Policies": {
+    "PaymentDisputeGate": {
+      "NegativeAtOrBelow": 0.25,
+      "PositiveAtOrAbove": 0.75,
+      "MinimumIntentConfidence": 0.8
+    }
+  }
+}
+```
+
+A missing, out-of-range or inconsistent value stops the application at startup.
+Every response and audit event carries a `policyVersion` fingerprint of the
+effective values, for example `payment-dispute-gate/sha256:a0e9832f7842`.
+
 ## Confirmation boundary
 
 The confirmation endpoint accepts an opaque reference supplied by a trusted,
@@ -53,6 +73,8 @@ and caller before invoking this boundary.
 
 The sample emits `ActivitySource` traces and `Meter` instruments under
 `DecisionFabric.PaymentDisputes`. An OpenTelemetry SDK or Azure Monitor exporter
-can subscribe without changing the domain code. Audit logs contain a SHA-256
-input fingerprint and decision metadata; the raw customer message is neither
-stored nor logged.
+can subscribe without changing the domain code. The shared fabric additionally
+emits provider-level activities and metrics under `DecisionFabric`. Audit logs
+contain a SHA-256 input fingerprint, model, contract and policy versions, and —
+for the `confirmed` event — the trusted confirmation reference; the raw customer
+message is neither stored nor logged.

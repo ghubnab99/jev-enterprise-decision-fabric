@@ -17,20 +17,43 @@ This project separates four concerns:
 
 See [the architecture direction](docs/architecture.md).
 
+## Public API
+
+Each decision point is a **decision pack**: a versioned contract, a mapping from
+domain input to model state, and a deterministic policy. One fabric evaluates
+any pack with a single batched request and validates the answers before the
+policy runs.
+
+```csharp
+builder.Services.AddDecisionFabric(builder.Configuration);   // Fixture or TypeSafe
+builder.Services.AddSingleton<PaymentDisputePack>();
+
+var result = await fabric.EvaluateAsync(pack, new PaymentDisputeInput(message), ct);
+
+// result.Outcome        — the pack's typed domain outcome
+// result.Evidence       — validated Noul / Choice / Score answers
+// result.Model, ContractVersion, PolicyVersion, Duration, Usage
+```
+
+Payment disputes and the Agent Action Gate both use this API; the fabric has
+no domain-specific code.
+
 ## Repository layout
 
 ```text
 src/
-  DecisionFabric.Core/       provider-neutral questions, answers and contracts
+  DecisionFabric.Core/       contracts, answers, decision packs, fabric, evidence validation
   DecisionFabric.TypeSafe/   direct Jev HTTP provider with retry handling
   DecisionFabric.Policy/     deterministic routing around uncertainty
+  DecisionFabric.Hosting/    DI registration and fixture/live provider selection
 evals/
   DecisionFabric.Evals/      JSON-driven repeatable evaluation runner
   datasets/                  versioned labelled cases
 samples/
-  DecisionFabric.PaymentDisputes.Api/  end-to-end ASP.NET Core decision API
+  DecisionFabric.PaymentDisputes.Api/  end-to-end payment dispute decision API
+  DecisionFabric.AgentActionGate.Api/  agent tool-call authorization API
 tests/
-  DecisionFabric.Tests/      wire-contract, parsing and policy tests
+  DecisionFabric.Tests/      contract, fabric, policy, snapshot and HTTP tests
 ```
 
 ## First evaluation suite
@@ -97,6 +120,18 @@ dotnet run --project samples/DecisionFabric.PaymentDisputes.Api
 See [the sample guide](samples/DecisionFabric.PaymentDisputes.Api/README.md) for
 fixture requests, live configuration and the confirmation boundary.
 
+## Agent Action Gate sample
+
+[`DecisionFabric.AgentActionGate.Api`](samples/DecisionFabric.AgentActionGate.Api)
+decides whether an AI agent's proposed tool call may run automatically, needs
+human approval or is denied. It proves the pack abstraction in a second domain
+with a different input shape and a non-destructive route, using the same fabric,
+hosting registration and fixture provider. Its fixtures are synthetic.
+
+```bash
+dotnet run --project samples/DecisionFabric.AgentActionGate.Api
+```
+
 ## Run locally
 
 Requires the .NET 10 SDK.
@@ -145,10 +180,10 @@ Primary references:
 
 ## Near-term milestones
 
+- Record live Jev fixtures and a labelled evaluation dataset for the Agent Action Gate.
+- Run a Jev versus structured-output LLM comparison on the same datasets.
 - Add adversarial multilingual and punctuation variants to the risk-gate suite.
-- Add OpenTelemetry spans and redacted decision-event logging.
-- Add a small decision-inspection dashboard for the payment sample.
-- Build the Agent Action Gate sample.
+- Add a small decision-inspection dashboard for both samples.
 - Encode the architecture as a coding-agent skill after the abstractions are evidence-backed.
 
 This is independent experimental work and is not an official TypeSafe AI project.
