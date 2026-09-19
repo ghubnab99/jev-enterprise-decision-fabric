@@ -25,6 +25,14 @@ public sealed record DecisionFixtureSet
 
     /// <summary>Answers returned for any state without a recorded entry.</summary>
     public required IReadOnlyDictionary<string, DecisionAnswer> Fallback { get; init; }
+
+    /// <summary>
+    /// Reported as the response model when <see cref="Fallback"/> answers. Set it
+    /// when <see cref="Recorded"/> came from a live model but the fallback was
+    /// written by hand, so a hand-written answer never carries a live model's name.
+    /// Defaults to <see cref="Model"/>.
+    /// </summary>
+    public string? FallbackModel { get; init; }
 }
 
 public sealed class FixtureDecisionProvider : IDecisionProvider
@@ -51,15 +59,13 @@ public sealed class FixtureDecisionProvider : IDecisionProvider
                 $"No fixture set is registered for contract '{request.Contract.Id}'.");
         }
 
-        var answers = set.Recorded.TryGetValue(set.KeySelector(request.State), out var recorded)
-            ? recorded
-            : set.Fallback;
+        var isRecorded = set.Recorded.TryGetValue(set.KeySelector(request.State), out var recorded);
         stopwatch.Stop();
 
         return Task.FromResult(new DecisionEvaluationResponse
         {
-            Model = set.Model,
-            Answers = answers,
+            Model = isRecorded ? set.Model : set.FallbackModel ?? set.Model,
+            Answers = isRecorded ? recorded! : set.Fallback,
             Usage = new DecisionUsage(0, 0),
             Duration = stopwatch.Elapsed
         });
