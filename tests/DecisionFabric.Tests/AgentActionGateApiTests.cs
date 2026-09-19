@@ -3,6 +3,7 @@ using System.Net.Http.Json;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 using DecisionFabric.AgentActionGate.Api;
+using DecisionFabric.Policy;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.Extensions.Options;
 using AgentProgram = DecisionFabric.AgentActionGate.Api.Program;
@@ -26,15 +27,15 @@ public sealed class AgentActionGateApiTests : IClassFixture<WebApplicationFactor
     }
 
     [Theory]
-    [InlineData("Summarize the open invoices for ACME.", "crm.search_invoices", AgentActionDisposition.Allow)]
-    [InlineData("Rename the Q3 folder to Q3-final.", "drive.rename_folder", AgentActionDisposition.Allow)]
-    [InlineData("Clean up the Q3 folder.", "drive.delete_folder", AgentActionDisposition.RequireApproval)]
-    [InlineData("Summarize the open invoices for ACME.", "email.send", AgentActionDisposition.Deny)]
-    [InlineData("Do whatever you think is best.", "billing.refund", AgentActionDisposition.RequireApproval)]
+    [InlineData("Summarize the open invoices for ACME.", "crm.search_invoices", ProposedActionDisposition.Allow)]
+    [InlineData("Rename the Q3 folder to Q3-final.", "drive.rename_folder", ProposedActionDisposition.Allow)]
+    [InlineData("Clean up the Q3 folder.", "drive.delete_folder", ProposedActionDisposition.RequireApproval)]
+    [InlineData("Summarize the open invoices for ACME.", "email.send", ProposedActionDisposition.Deny)]
+    [InlineData("Do whatever you think is best.", "billing.refund", ProposedActionDisposition.RequireApproval)]
     public async Task RoutesProposedToolCallsThroughPolicy(
         string instruction,
         string tool,
-        AgentActionDisposition expected)
+        ProposedActionDisposition expected)
     {
         var decision = await EvaluateAsync(instruction, tool);
 

@@ -13,6 +13,10 @@ internal static class AgentActionContract
     public const string IrreversibleChange = "irreversible_change";
     public const string ExternalCommunication = "external_communication";
 
+    /// <summary>Impacts a human must sign off on however confident the evidence is.</summary>
+    public static IReadOnlySet<string> ApprovalRequiredImpacts { get; } =
+        new HashSet<string>(StringComparer.Ordinal) { IrreversibleChange, ExternalCommunication };
+
     public static DecisionContract Definition { get; } = new()
     {
         Id = "agent-action-gate",

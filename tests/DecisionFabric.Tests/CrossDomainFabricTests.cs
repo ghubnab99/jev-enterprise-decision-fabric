@@ -42,7 +42,7 @@ public sealed class CrossDomainFabricTests
             new AgentActionInput("Clean up the Q3 folder.", "drive.delete_folder", """{"folder":"Q3"}"""));
 
         Assert.Equal(DestructiveActionDisposition.RequireConfirmation, payment.Outcome.Gate.Disposition);
-        Assert.Equal(AgentActionDisposition.RequireApproval, agent.Outcome.Disposition);
+        Assert.Equal(ProposedActionDisposition.RequireApproval, agent.Outcome.Disposition);
         Assert.Equal(["payment-dispute-triage", "agent-action-gate"], provider.ContractIds);
         Assert.Equal(
             [paymentPack.Contract.Questions.Count, agentPack.Contract.Questions.Count],
