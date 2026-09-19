@@ -1,0 +1,24 @@
+{
+  "policyDisposition": "requireConfirmation",
+  "authorizationState": "awaitingConfirmation",
+  "nextAction": "requestCustomerConfirmation",
+  "evidence": {
+    "blockCardRequested": 0.35,
+    "primaryIntent": "block_card",
+    "primaryIntentConfidence": 0.56,
+    "urgency": 1.27,
+    "urgencyConfidence": 0.43
+  },
+  "riskSignals": [
+    "SelfCorrection",
+    "Hedging"
+  ],
+  "policyReasons": [
+    "The request probability 0.350 is inside the uncertainty band."
+  ],
+  "model": "fixture/jev-1.13.0-recorded",
+  "contractId": "payment-dispute-triage",
+  "contractVersion": "1.0.0",
+  "inputTokens": 0,
+  "outputTokens": 0
+}
