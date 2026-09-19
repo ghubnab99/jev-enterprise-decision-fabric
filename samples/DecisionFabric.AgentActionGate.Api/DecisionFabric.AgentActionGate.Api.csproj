@@ -1,0 +1,16 @@
+<Project Sdk="Microsoft.NET.Sdk.Web">
+  <PropertyGroup>
+    <Description>Agent tool-call authorization sample built on the same decision fabric as the payment dispute sample.</Description>
+  </PropertyGroup>
+  <ItemGroup>
+    <InternalsVisibleTo Include="DecisionFabric.Tests" />
+  </ItemGroup>
+  <ItemGroup>
+    <PackageReference Include="Microsoft.AspNetCore.OpenApi" Version="10.0.12" />
+  </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\..\src\DecisionFabric.Core\DecisionFabric.Core.csproj" />
+    <ProjectReference Include="..\..\src\DecisionFabric.Hosting\DecisionFabric.Hosting.csproj" />
+    <ProjectReference Include="..\..\src\DecisionFabric.Policy\DecisionFabric.Policy.csproj" />
+  </ItemGroup>
+</Project>
