@@ -1,0 +1,25 @@
+{
+  "policyDisposition": "requireConfirmation",
+  "authorizationState": "awaitingConfirmation",
+  "nextAction": "requestCustomerConfirmation",
+  "evidence": {
+    "blockCardRequested": 0.84,
+    "primaryIntent": "block_card",
+    "primaryIntentConfidence": 0.77,
+    "urgency": 1.59,
+    "urgencyConfidence": 0.38
+  },
+  "riskSignals": [
+    "MultipleNegations"
+  ],
+  "policyReasons": [
+    "Linguistic risk detected: MultipleNegations.",
+    "Intent confidence 0.770 is below the confirmation-free minimum 0.800."
+  ],
+  "model": "fixture/jev-1.13.0-recorded",
+  "contractId": "payment-dispute-triage",
+  "contractVersion": "1.0.0",
+  "policyVersion": "payment-dispute-gate/sha256:a0e9832f7842",
+  "inputTokens": 0,
+  "outputTokens": 0
+}

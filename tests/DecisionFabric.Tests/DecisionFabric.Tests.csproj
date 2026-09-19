@@ -14,8 +14,10 @@
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="..\..\evals\DecisionFabric.Evals\DecisionFabric.Evals.csproj" />
+    <ProjectReference Include="..\..\samples\DecisionFabric.AgentActionGate.Api\DecisionFabric.AgentActionGate.Api.csproj" />
     <ProjectReference Include="..\..\samples\DecisionFabric.PaymentDisputes.Api\DecisionFabric.PaymentDisputes.Api.csproj" />
     <ProjectReference Include="..\..\src\DecisionFabric.Core\DecisionFabric.Core.csproj" />
+    <ProjectReference Include="..\..\src\DecisionFabric.Hosting\DecisionFabric.Hosting.csproj" />
     <ProjectReference Include="..\..\src\DecisionFabric.TypeSafe\DecisionFabric.TypeSafe.csproj" />
     <ProjectReference Include="..\..\src\DecisionFabric.Policy\DecisionFabric.Policy.csproj" />
   </ItemGroup>
