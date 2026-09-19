@@ -19,11 +19,13 @@ internal static class DecisionContractPrompt
         "Probabilities and confidences must be calibrated, not rounded to 0 or 1 for emphasis. " +
         "Respond only with the JSON object the schema describes.";
 
+    private static readonly JsonSerializerOptions IndentedJson = new() { WriteIndented = true };
+
     public static string RenderUserPrompt(DecisionContract contract, JsonElement state)
     {
         var builder = new StringBuilder();
         builder.AppendLine("<state>");
-        builder.AppendLine(JsonSerializer.Serialize(state, new JsonSerializerOptions { WriteIndented = true }));
+        builder.AppendLine(JsonSerializer.Serialize(state, IndentedJson));
         builder.AppendLine("</state>");
         builder.AppendLine();
         builder.AppendLine("Answer every question below about that state.");

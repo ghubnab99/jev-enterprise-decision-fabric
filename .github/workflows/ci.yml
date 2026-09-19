@@ -19,7 +19,7 @@ jobs:
       - name: Restore
         run: dotnet restore JevEnterpriseDecisionFabric.sln
       - name: Build
-        run: dotnet build JevEnterpriseDecisionFabric.sln --configuration Release --no-restore
+        run: dotnet build JevEnterpriseDecisionFabric.sln --configuration Release --no-restore -warnaserror
       - name: Test
         run: dotnet test JevEnterpriseDecisionFabric.sln --configuration Release --no-build
       - name: Validate evaluation datasets

@@ -25,7 +25,7 @@ internal static class Providers
     /// Claude list prices as of 2026-09. TypeSafe does not publish per-token prices,
     /// so a Jev run reports tokens and latency but no cost unless one is supplied.
     /// </summary>
-    private static readonly IReadOnlyDictionary<string, ProviderPricing> ClaudePricing =
+    private static readonly Dictionary<string, ProviderPricing> ClaudePricing =
         new Dictionary<string, ProviderPricing>(StringComparer.Ordinal)
         {
             ["claude-opus-5"] = new(5.00, 25.00),

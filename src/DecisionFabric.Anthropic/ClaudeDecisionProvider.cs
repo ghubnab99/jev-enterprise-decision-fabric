@@ -63,7 +63,8 @@ public sealed class ClaudeDecisionProvider : IDecisionProvider
 
         return new DecisionEvaluationResponse
         {
-            Model = response.Model.ToString() ?? _options.Model,
+            // Raw() is the model id itself; ToString() renders the enum as JSON, quotes included.
+            Model = response.Model.Raw() ?? _options.Model,
             Answers = ParseAnswers(request.Contract, ReadJson(response)),
             Usage = new DecisionUsage((int)response.Usage.InputTokens, (int)response.Usage.OutputTokens),
             Duration = stopwatch.Elapsed
