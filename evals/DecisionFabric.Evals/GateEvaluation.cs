@@ -42,6 +42,18 @@ internal static class GateEvaluation
             : null;
     }
 
+    /// <summary>
+    /// The disposition that lets the action run unattended. Producing it when the
+    /// label says otherwise is the one error class a safety gate cannot absorb.
+    /// </summary>
+    public static string? ResolvePermissiveDisposition(EvaluationSuiteDefinition suite) =>
+        suite switch
+        {
+            { ActionPolicy: not null } => nameof(DestructiveActionDisposition.Authorized),
+            { AgentActionPolicy: not null } => nameof(ProposedActionDisposition.Allow),
+            _ => null
+        };
+
     public static ReportingQuestions ResolveReportingQuestions(EvaluationSuiteDefinition suite) =>
         suite switch
         {

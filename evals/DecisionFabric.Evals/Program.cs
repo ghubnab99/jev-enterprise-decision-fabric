@@ -1,4 +1,5 @@
 using System.Diagnostics.CodeAnalysis;
+using System.Globalization;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 using DecisionFabric.Core;
@@ -13,7 +14,9 @@ internal static class Program
         try
         {
             var options = RunnerOptions.Parse(args);
-            var suite = await EvaluationIo.LoadSuiteAsync(options.DatasetPath);
+            var suite = ApplyRepetitionCap(
+                await EvaluationIo.LoadSuiteAsync(options.DatasetPath),
+                options.MaximumRepetitions);
             EvaluationSuiteValidator.Validate(suite);
 
             var plannedCalls = suite.Cases.Sum(testCase => testCase.Repetitions);
@@ -88,6 +91,26 @@ internal static class Program
         }
     }
 
+    /// <summary>
+    /// Trims each case's repetitions so a comparison run can be priced down without
+    /// editing the dataset. Cases keep their relative depth: a 10-repetition
+    /// stability case still outweighs a single-run breadth case.
+    /// </summary>
+    private static EvaluationSuiteDefinition ApplyRepetitionCap(
+        EvaluationSuiteDefinition suite,
+        int? maximumRepetitions) =>
+        maximumRepetitions is not { } maximum
+            ? suite
+            : suite with
+            {
+                Cases = suite.Cases
+                    .Select(testCase => testCase with
+                    {
+                        Repetitions = Math.Min(testCase.Repetitions, maximum)
+                    })
+                    .ToArray()
+            };
+
     [SuppressMessage(
         "Performance",
         "CA1859:Use concrete types when possible for improved performance",
@@ -115,7 +138,12 @@ internal static class Program
     }
 }
 
-internal sealed record RunnerOptions(string DatasetPath, string OutputPath, string ReportPath, bool DryRun)
+internal sealed record RunnerOptions(
+    string DatasetPath,
+    string OutputPath,
+    string ReportPath,
+    bool DryRun,
+    int? MaximumRepetitions)
 {
     public static RunnerOptions Parse(string[] args)
     {
@@ -123,6 +151,7 @@ internal sealed record RunnerOptions(string DatasetPath, string OutputPath, stri
         string? output = null;
         string? report = null;
         var dryRun = false;
+        int? maximumRepetitions = null;
 
         for (var index = 0; index < args.Length; index++)
         {
@@ -137,6 +166,9 @@ internal sealed record RunnerOptions(string DatasetPath, string OutputPath, stri
                 case "--report" when index + 1 < args.Length:
                     report = args[++index];
                     break;
+                case "--max-repetitions" when index + 1 < args.Length:
+                    maximumRepetitions = int.Parse(args[++index], CultureInfo.InvariantCulture);
+                    break;
                 case "--dry-run":
                     dryRun = true;
                     break;
@@ -148,11 +180,17 @@ internal sealed record RunnerOptions(string DatasetPath, string OutputPath, stri
         output ??= $"artifacts/results/{Path.GetFileNameWithoutExtension(dataset)}-" +
             $"{DateTimeOffset.UtcNow:yyyyMMdd-HHmmss}.jsonl";
 
+        if (maximumRepetitions is < 1)
+        {
+            throw new ArgumentException("--max-repetitions must be at least 1.");
+        }
+
         return new RunnerOptions(
             dataset,
             output,
             report ?? Path.ChangeExtension(output, ".report.json"),
-            dryRun);
+            dryRun,
+            maximumRepetitions);
     }
 }
 
@@ -349,6 +387,14 @@ internal static class EvaluationConsole
             Console.WriteLine(
                 $"\ndisposition accuracy: {accuracyReport.CorrectRuns}/{accuracyReport.LabelledRuns} " +
                 $"({accuracyReport.Accuracy:P2}) across {accuracyReport.LabelledCases} labelled cases");
+            if (accuracyReport.UnsafeAllowRuns is { } unsafeAllows)
+            {
+                Console.WriteLine(
+                    $"unsafe '{accuracyReport.PermissiveDisposition}': {unsafeAllows} " +
+                    $"({accuracyReport.UnsafeAllowRate:P2}); " +
+                    $"over-blocked: {accuracyReport.OverBlockedRuns} ({accuracyReport.OverBlockedRate:P2})");
+            }
+
             Console.WriteLine("confusion (expected -> observed):");
             foreach (var (expected, observed) in accuracyReport.Confusion)
             {
