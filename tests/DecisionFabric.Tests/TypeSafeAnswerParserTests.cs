@@ -7,7 +7,7 @@ namespace DecisionFabric.Tests;
 public sealed class TypeSafeAnswerParserTests
 {
     [Fact]
-    public void Parse_ReadsAllDocumentedAnswerShapes()
+    public void ParseReadsAllDocumentedAnswerShapes()
     {
         using var noulJson = JsonDocument.Parse("""{"type":"noul","noul":0.92}""");
         using var choiceJson = JsonDocument.Parse("""{"type":"choice","choice":"fraud","probabilities":{"fraud":0.8,"other":0.2},"confidence":0.6}""");

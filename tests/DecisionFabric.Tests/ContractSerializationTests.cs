@@ -6,7 +6,7 @@ namespace DecisionFabric.Tests;
 public sealed class ContractSerializationTests
 {
     [Fact]
-    public void NoulQuestion_SerializesWithWireDiscriminatorAndCriteria()
+    public void NoulQuestionSerializesWithWireDiscriminatorAndCriteria()
     {
         DecisionQuestion question = new NoulQuestion
         {

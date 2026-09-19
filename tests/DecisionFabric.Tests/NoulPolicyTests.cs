@@ -11,7 +11,7 @@ public sealed class NoulPolicyTests
     [InlineData(0.05, PolicyDisposition.Allow)]
     [InlineData(0.50, PolicyDisposition.HumanReview)]
     [InlineData(0.95, PolicyDisposition.RequireConfirmation)]
-    public void Route_KeepsUncertainModelOutputAwayFromSideEffects(
+    public void RouteKeepsUncertainModelOutputAwayFromSideEffects(
         double probability,
         PolicyDisposition expected)
     {
