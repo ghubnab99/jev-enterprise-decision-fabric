@@ -85,7 +85,12 @@ public sealed class PaymentDisputeApiTests : IClassFixture<WebApplicationFactory
             JsonOptions);
         var secondDecision = await second.Content.ReadFromJsonAsync<PaymentDisputeDecisionResponse>(
             JsonOptions);
-        Assert.Equal(firstDecision, secondDecision);
+        Assert.NotNull(firstDecision);
+        Assert.NotNull(secondDecision);
+        Assert.Equal(firstDecision.DecisionId, secondDecision.DecisionId);
+        Assert.Equal(firstDecision.AuthorizationState, secondDecision.AuthorizationState);
+        Assert.Equal(firstDecision.NextAction, secondDecision.NextAction);
+        Assert.Equal(firstDecision.ConfirmedAt, secondDecision.ConfirmedAt);
     }
 
     [Fact]

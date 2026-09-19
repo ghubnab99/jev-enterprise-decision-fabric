@@ -7,7 +7,7 @@ internal sealed class FixtureDecisionProvider : IDecisionProvider
 {
     private const string FixtureModel = "fixture/jev-1.13.0-recorded";
 
-    private static readonly IReadOnlyDictionary<string, FixtureAnswers> Fixtures =
+    private static readonly Dictionary<string, FixtureAnswers> Fixtures =
         new Dictionary<string, FixtureAnswers>(StringComparer.OrdinalIgnoreCase)
         {
             ["Freeze this card immediately. I do not recognize the transaction."] =

@@ -122,7 +122,8 @@ public partial class Program
                 statusCode: StatusCodes.Status409Conflict,
                 title: "Decision is not awaiting confirmation",
                 detail: "Only a decision routed to confirmation can cross the confirmation boundary."),
-            _ => throw new ArgumentOutOfRangeException(nameof(result))
+            _ => throw new InvalidOperationException(
+                $"Unsupported confirmation status '{result.Status}'.")
         };
     }
 
