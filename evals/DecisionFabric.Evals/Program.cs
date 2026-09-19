@@ -199,7 +199,7 @@ internal static class Program
 
             var confidence = answer switch
             {
-                ChoiceAnswer choice => choice.Confidence,
+                ChoiceAnswer choiceAnswer => choiceAnswer.Confidence,
                 ScoreAnswer score => score.Confidence,
                 _ => (double?)null
             };
