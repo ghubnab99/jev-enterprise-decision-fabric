@@ -37,6 +37,36 @@ internal static class Providers
     public const string Jev = "jev";
     public const string Claude = "claude";
 
+    /// <summary>
+    /// Finds a provider's key without requiring a global environment variable.
+    /// Claude Code resolves its own credentials from ANTHROPIC_API_KEY ahead of a
+    /// subscription login, so exporting that name machine-wide silently bills the
+    /// editor to the API. The key file is checked first so this tool can hold a
+    /// key the rest of the machine never sees.
+    /// </summary>
+    private static string ResolveApiKey(string provider, string environmentVariable, string? explicitPath)
+    {
+        var path = explicitPath ?? Path.Combine(".secrets", $"{provider}.key");
+        if (File.Exists(path))
+        {
+            var fromFile = File.ReadAllText(path).Trim();
+            if (fromFile.Length > 0)
+            {
+                return fromFile;
+            }
+        }
+
+        var fromEnvironment = Environment.GetEnvironmentVariable(environmentVariable);
+        if (!string.IsNullOrWhiteSpace(fromEnvironment))
+        {
+            return fromEnvironment.Trim();
+        }
+
+        throw new InvalidOperationException(
+            $"No {provider} API key. Put one in '{path}' (gitignored), pass --api-key-file, " +
+            $"or set {environmentVariable} for this process only.");
+    }
+
     public static ProviderSelection Create(RunnerOptions options)
     {
         ArgumentNullException.ThrowIfNull(options);
@@ -52,11 +82,7 @@ internal static class Providers
 
     private static ProviderSelection CreateJev(RunnerOptions options)
     {
-        var apiKey = Environment.GetEnvironmentVariable("TYPESAFE_API_KEY");
-        if (string.IsNullOrWhiteSpace(apiKey))
-        {
-            throw new InvalidOperationException("Set TYPESAFE_API_KEY before running live evaluations.");
-        }
+        var apiKey = ResolveApiKey("typesafe", "TYPESAFE_API_KEY", options.ApiKeyFile);
 
         var clientOptions = new TypeSafeClientOptions();
         if (options.Model is { } model)
@@ -75,11 +101,7 @@ internal static class Providers
 
     private static ProviderSelection CreateClaude(RunnerOptions options)
     {
-        var apiKey = Environment.GetEnvironmentVariable("ANTHROPIC_API_KEY");
-        if (string.IsNullOrWhiteSpace(apiKey))
-        {
-            throw new InvalidOperationException("Set ANTHROPIC_API_KEY before running the Claude baseline.");
-        }
+        var apiKey = ResolveApiKey("anthropic", "ANTHROPIC_API_KEY", options.ApiKeyFile);
 
         var model = options.Model ?? "claude-opus-5";
         var clientOptions = ClaudeClientOptions.ForModel(model);

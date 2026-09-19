@@ -206,7 +206,8 @@ internal sealed record RunnerOptions(
     string? Model,
     string? Effort,
     ProviderPricing? Pricing,
-    int Concurrency)
+    int Concurrency,
+    string? ApiKeyFile)
 {
     public static RunnerOptions Parse(string[] args)
     {
@@ -221,6 +222,7 @@ internal sealed record RunnerOptions(
         double? inputPrice = null;
         double? outputPrice = null;
         var concurrency = 1;
+        string? apiKeyFile = null;
 
         for (var index = 0; index < args.Length; index++)
         {
@@ -255,6 +257,9 @@ internal sealed record RunnerOptions(
                     break;
                 case "--concurrency" when index + 1 < args.Length:
                     concurrency = int.Parse(args[++index], CultureInfo.InvariantCulture);
+                    break;
+                case "--api-key-file" when index + 1 < args.Length:
+                    apiKeyFile = args[++index];
                     break;
                 case "--dry-run":
                     dryRun = true;
@@ -294,7 +299,8 @@ internal sealed record RunnerOptions(
             inputPrice is { } input && outputPrice is { } outputRate
                 ? new ProviderPricing(input, outputRate)
                 : null,
-            concurrency);
+            concurrency,
+            apiKeyFile);
     }
 }
 
