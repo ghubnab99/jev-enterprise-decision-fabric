@@ -79,6 +79,8 @@ $env:TYPESAFE_API_KEY = "..."
 dotnet run --project evals/DecisionFabric.Evals -- --dataset evals/datasets/payment-card-block-negation-v1.json
 ```
 
+Alternatively, add `TYPESAFE_API_KEY` as a GitHub Actions repository secret and manually run the `live-evaluation` workflow. The secret is injected only into the evaluation step. Raw JSONL results are retained as a private workflow artifact for 14 days.
+
 ## Model and API contract
 
 The provider calls `POST https://api.typesafe.ai/v1/systemone` directly and pins `jev-1.13.0`. It does not depend on an unofficial SDK. The requested model, actual returned model and semantic-contract version remain separate so upgrades can be evaluated deliberately.

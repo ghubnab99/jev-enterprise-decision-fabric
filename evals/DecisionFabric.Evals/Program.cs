@@ -44,6 +44,7 @@ internal static class Program
             using var httpClient = new HttpClient();
             var provider = new TypeSafeDecisionProvider(httpClient, apiKey);
             var successfulRuns = new List<EvaluationRunRecord>();
+            var failedCallCount = 0;
 
             await using var writer = new StreamWriter(outputPath, append: false);
             foreach (var testCase in suite.Cases)
@@ -58,6 +59,10 @@ internal static class Program
                     {
                         successfulRuns.Add(record);
                     }
+                    else
+                    {
+                        failedCallCount++;
+                    }
 
                     Console.WriteLine($"{testCase.Id} [{run}/{testCase.Repetitions}]: {(record.Passed ? "PASS" : "CHECK")}, {record.DurationMilliseconds:F0} ms");
                 }
@@ -65,6 +70,12 @@ internal static class Program
 
             PrintNoulSummary(successfulRuns);
             Console.WriteLine($"Raw JSONL: {outputPath}");
+            if (failedCallCount > 0)
+            {
+                Console.Error.WriteLine($"{failedCallCount} API call(s) failed. See the JSONL error fields.");
+                return 2;
+            }
+
             return 0;
         }
         catch (Exception exception)

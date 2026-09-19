@@ -1,0 +1,35 @@
+name: live-evaluation
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  payment-negation:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 10.0.x
+      - name: Verify API key is configured
+        env:
+          TYPESAFE_API_KEY: ${{ secrets.TYPESAFE_API_KEY }}
+        run: test -n "$TYPESAFE_API_KEY"
+      - name: Run 140-call evaluation
+        env:
+          TYPESAFE_API_KEY: ${{ secrets.TYPESAFE_API_KEY }}
+        run: >-
+          dotnet run --project evals/DecisionFabric.Evals --configuration Release --
+          --dataset evals/datasets/payment-card-block-negation-v1.json
+          --output artifacts/results/payment-card-block-negation-v1.jsonl
+      - name: Upload raw results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: payment-card-block-negation-v1
+          path: artifacts/results/payment-card-block-negation-v1.jsonl
+          if-no-files-found: warn
+          retention-days: 14
