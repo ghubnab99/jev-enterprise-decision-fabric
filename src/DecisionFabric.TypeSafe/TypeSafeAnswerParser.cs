@@ -33,10 +33,10 @@ public static class TypeSafeAnswerParser
         };
     }
 
-    private static IReadOnlyDictionary<string, double> ReadDoubleMap(JsonElement element) =>
+    private static Dictionary<string, double> ReadDoubleMap(JsonElement element) =>
         element.EnumerateObject().ToDictionary(property => property.Name, property => property.Value.GetDouble());
 
-    private static IReadOnlyDictionary<string, string> ReadStringMap(JsonElement element) =>
+    private static Dictionary<string, string> ReadStringMap(JsonElement element) =>
         element.EnumerateObject().ToDictionary(
             property => property.Name,
             property => property.Value.GetString() ?? string.Empty);

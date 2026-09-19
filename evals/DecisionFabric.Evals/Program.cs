@@ -1,3 +1,4 @@
+using System.Diagnostics.CodeAnalysis;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 using DecisionFabric.Core;
@@ -119,6 +120,10 @@ internal static class Program
         }
     }
 
+    [SuppressMessage(
+        "Performance",
+        "CA1859:Use concrete types when possible for improved performance",
+        Justification = "The evaluation runner exercises the same provider abstraction consumed by applications and tests.")]
     private static async Task<EvaluationRunRecord> ExecuteAsync(
         EvaluationSuiteDefinition suite,
         EvaluationCaseDefinition testCase,

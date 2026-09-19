@@ -53,6 +53,18 @@ The runner writes one JSON object per run with the state case, contract version,
 
 The first thresholds are hypotheses for evaluation—not production guarantees. They must be recalibrated from labelled data.
 
+### First live baseline
+
+The first pinned-model run completed 140/140 API calls without an error. Across
+120 assertion-bearing calls, 230 hard assertions passed and none failed. Clear
+positive/negative and paraphrase cases separated cleanly; the deliberately hard
+double-negation case exposed why a consequential action cannot rely on a Noul
+threshold alone.
+
+See [the complete live findings](docs/evaluations/payment-card-block-negation-v1.md),
+including latency, token usage, per-case variance, ambiguity behavior and the
+resulting policy requirement.
+
 ## Run locally
 
 Requires the .NET 10 SDK.
@@ -100,7 +112,7 @@ Primary references:
 
 ## Near-term milestones
 
-- Run and publish the first reproducible findings.
+- Add a confirmation gate for destructive actions under linguistic risk.
 - Add decision-flip and metamorphic-test reports.
 - Build Payment Dispute Intelligence and Agent Action Gate samples.
 - Add OpenTelemetry spans and redacted decision-event logging.
