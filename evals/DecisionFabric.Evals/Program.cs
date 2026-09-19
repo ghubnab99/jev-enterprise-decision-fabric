@@ -13,6 +13,11 @@ internal static class Program
     {
         try
         {
+            if (args.Length > 0 && args[0] == "compare")
+            {
+                return await RunComparisonAsync(args[1..]);
+            }
+
             var options = RunnerOptions.Parse(args);
             var suite = ApplyRepetitionCap(
                 await EvaluationIo.LoadSuiteAsync(options.DatasetPath),
@@ -63,6 +68,27 @@ internal static class Program
             Console.Error.WriteLine(exception.Message);
             return 1;
         }
+    }
+
+    private static async Task<int> RunComparisonAsync(string[] args)
+    {
+        var reports = new List<string>();
+        string? output = null;
+
+        for (var index = 0; index < args.Length; index++)
+        {
+            switch (args[index])
+            {
+                case "--output" when index + 1 < args.Length:
+                    output = args[++index];
+                    break;
+                default:
+                    reports.Add(args[index]);
+                    break;
+            }
+        }
+
+        return await BenchmarkComparisonBuilder.RunAsync(reports, output);
     }
 
     /// <summary>
