@@ -23,7 +23,7 @@ public static partial class LinguisticRiskDetector
         var signals = LinguisticRiskSignal.None;
         if (SentenceBoundaryRegex()
             .Split(text)
-            .Any(sentence => NegationTokenRegex().Matches(sentence).Count >= 2))
+            .Any(sentence => NegationTokenRegex().Count(sentence) >= 2))
         {
             signals |= LinguisticRiskSignal.MultipleNegations;
         }

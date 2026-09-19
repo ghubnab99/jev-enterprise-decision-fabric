@@ -122,7 +122,7 @@ internal static class EvaluationReportBuilder
 
     private static CaseEvaluationReport BuildCaseReport(
         EvaluationCaseDefinition testCase,
-        IReadOnlyCollection<EvaluationRunRecord> records,
+        EvaluationRunRecord[] records,
         NoulPolicyThresholds thresholds)
     {
         var probabilities = ReadNoulValues(records, "block_card_requested");
@@ -255,7 +255,7 @@ internal static class EvaluationReportBuilder
             .Select(answer => answer!.Choice)
             .ToArray();
 
-    private static NumericSummary Summarize(IReadOnlyCollection<double> values)
+    private static NumericSummary Summarize(double[] values)
     {
         var mean = values.Average();
         return new NumericSummary(
