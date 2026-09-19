@@ -1,0 +1,12 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <Description>Dependency-injection registration and fixture/live provider selection for the Enterprise Decision Fabric.</Description>
+  </PropertyGroup>
+  <ItemGroup>
+    <FrameworkReference Include="Microsoft.AspNetCore.App" />
+  </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\DecisionFabric.Core\DecisionFabric.Core.csproj" />
+    <ProjectReference Include="..\DecisionFabric.TypeSafe\DecisionFabric.TypeSafe.csproj" />
+  </ItemGroup>
+</Project>
