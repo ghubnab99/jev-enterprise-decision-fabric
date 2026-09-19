@@ -94,6 +94,14 @@ internal sealed record EvaluationReport
     public required string ContractId { get; init; }
     public required string ContractVersion { get; init; }
     public required DateTimeOffset GeneratedAt { get; init; }
+    public string? Provider { get; init; }
+    public string? RequestedModel { get; init; }
+    public ProviderPricing? Pricing { get; init; }
+
+    /// <summary>Null when the provider publishes no per-token price.</summary>
+    public double? EstimatedCostUsd { get; init; }
+    public double? CostPerDecisionUsd { get; init; }
+
     public required IReadOnlyList<string> ReturnedModels { get; init; }
     public required ReportingQuestions ReportingQuestions { get; init; }
     public required int PlannedRuns { get; init; }
@@ -115,7 +123,8 @@ internal static class EvaluationReportBuilder
 {
     public static EvaluationReport Build(
         EvaluationSuiteDefinition suite,
-        IReadOnlyCollection<EvaluationRunRecord> records)
+        IReadOnlyCollection<EvaluationRunRecord> records,
+        ProviderSelection? selection = null)
     {
         ArgumentNullException.ThrowIfNull(suite);
         ArgumentNullException.ThrowIfNull(records);
@@ -135,12 +144,21 @@ internal static class EvaluationReportBuilder
                 BuildMetamorphicComparison(relation, variantCaseId, successfulRecords, thresholds, questions)))
             .ToArray();
 
+        var inputTokens = successfulRecords.Sum(record => record.Response!.Usage.InputTokens);
+        var outputTokens = successfulRecords.Sum(record => record.Response!.Usage.OutputTokens);
+        var cost = selection?.Pricing?.CostUsd(inputTokens, outputTokens);
+
         return new EvaluationReport
         {
             SuiteId = suite.Id,
             ContractId = suite.Contract.Id,
             ContractVersion = suite.Contract.Version,
             GeneratedAt = DateTimeOffset.UtcNow,
+            Provider = selection?.Label,
+            RequestedModel = selection?.Model,
+            Pricing = selection?.Pricing,
+            EstimatedCostUsd = cost,
+            CostPerDecisionUsd = successfulRecords.Length == 0 ? null : cost / successfulRecords.Length,
             ReturnedModels = successfulRecords
                 .Select(record => record.Response!.Model)
                 .Distinct(StringComparer.Ordinal)
@@ -163,8 +181,8 @@ internal static class EvaluationReportBuilder
                 successfulRecords,
                 GateEvaluation.ResolvePermissiveDisposition(suite)),
             Latency = SummarizeLatency(successfulRecords),
-            InputTokens = successfulRecords.Sum(record => record.Response!.Usage.InputTokens),
-            OutputTokens = successfulRecords.Sum(record => record.Response!.Usage.OutputTokens),
+            InputTokens = inputTokens,
+            OutputTokens = outputTokens,
             Cases = caseReports,
             MetamorphicComparisons = comparisons
         };

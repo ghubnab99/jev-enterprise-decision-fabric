@@ -32,42 +32,16 @@ internal static class Program
                 return 0;
             }
 
-            var apiKey = Environment.GetEnvironmentVariable("TYPESAFE_API_KEY");
-            if (string.IsNullOrWhiteSpace(apiKey))
-            {
-                throw new InvalidOperationException("Set TYPESAFE_API_KEY before running live evaluations.");
-            }
-
             var outputPath = Path.GetFullPath(options.OutputPath);
             Directory.CreateDirectory(Path.GetDirectoryName(outputPath)!);
 
-            using var httpClient = new HttpClient();
-            var provider = new TypeSafeDecisionProvider(httpClient, apiKey);
-            var allRuns = new List<EvaluationRunRecord>();
-            var failedCallCount = 0;
+            var selection = Providers.Create(options);
+            using var lifetime = selection.Lifetime;
+            Console.WriteLine($"Provider: {selection.Label} ({selection.Model})");
 
-            await using var writer = new StreamWriter(outputPath, append: false);
-            foreach (var testCase in suite.Cases)
-            {
-                for (var run = 1; run <= testCase.Repetitions; run++)
-                {
-                    var record = await ExecuteAsync(suite, testCase, run, provider);
-                    await writer.WriteLineAsync(JsonSerializer.Serialize(record, EvaluationIo.JsonOptions));
-                    await writer.FlushAsync();
-                    allRuns.Add(record);
-
-                    if (record.Response is null)
-                    {
-                        failedCallCount++;
-                    }
-
-                    Console.WriteLine(
-                        $"{testCase.Id} [{run}/{testCase.Repetitions}]: {(record.Passed ? "PASS" : "CHECK")}, " +
-                        $"{record.ActionDecision?.Disposition ?? "-"}, {record.DurationMilliseconds:F0} ms");
-                }
-            }
-
-            var report = EvaluationReportBuilder.Build(suite, allRuns);
+            var allRuns = await RunSuiteAsync(suite, selection, options, outputPath);
+            var failedCallCount = allRuns.Count(record => record.Response is null);
+            var report = EvaluationReportBuilder.Build(suite, allRuns, selection);
             var reportPath = Path.GetFullPath(options.ReportPath);
             Directory.CreateDirectory(Path.GetDirectoryName(reportPath)!);
             await File.WriteAllTextAsync(
@@ -89,6 +63,64 @@ internal static class Program
             Console.Error.WriteLine(exception.Message);
             return 1;
         }
+    }
+
+    /// <summary>
+    /// Runs every planned call, writing each record to the JSONL as it lands so a
+    /// long run can be inspected or resumed from partial output. Concurrency is
+    /// bounded because latency percentiles are part of the result: overlapping
+    /// requests beyond what the provider serves in parallel would inflate them.
+    /// </summary>
+    private static async Task<List<EvaluationRunRecord>> RunSuiteAsync(
+        EvaluationSuiteDefinition suite,
+        ProviderSelection selection,
+        RunnerOptions options,
+        string outputPath)
+    {
+        var planned = suite.Cases
+            .SelectMany(testCase => Enumerable
+                .Range(1, testCase.Repetitions)
+                .Select(run => (TestCase: testCase, Run: run)))
+            .ToArray();
+        var records = new EvaluationRunRecord[planned.Length];
+        var completed = 0;
+
+        await using var writer = new StreamWriter(outputPath, append: false);
+        using var gate = new SemaphoreSlim(options.Concurrency);
+        var writeLock = new SemaphoreSlim(1);
+
+        await Task.WhenAll(planned.Select(async (item, index) =>
+        {
+            await gate.WaitAsync();
+            try
+            {
+                var record = await ExecuteAsync(suite, item.TestCase, item.Run, selection.Provider);
+                records[index] = record;
+
+                await writeLock.WaitAsync();
+                try
+                {
+                    await writer.WriteLineAsync(JsonSerializer.Serialize(record, EvaluationIo.JsonOptions));
+                    await writer.FlushAsync();
+                    var done = ++completed;
+                    Console.WriteLine(
+                        $"[{done}/{planned.Length}] {record.CaseId} [{record.Run}]: " +
+                        $"{(record.Passed ? "PASS" : "CHECK")}, " +
+                        $"{record.ActionDecision?.Disposition ?? "-"}, {record.DurationMilliseconds:F0} ms" +
+                        $"{(record.Error is null ? string.Empty : " ERROR")}");
+                }
+                finally
+                {
+                    writeLock.Release();
+                }
+            }
+            finally
+            {
+                gate.Release();
+            }
+        }));
+
+        return [.. records];
     }
 
     /// <summary>
@@ -143,7 +175,12 @@ internal sealed record RunnerOptions(
     string OutputPath,
     string ReportPath,
     bool DryRun,
-    int? MaximumRepetitions)
+    int? MaximumRepetitions,
+    string Provider,
+    string? Model,
+    string? Effort,
+    ProviderPricing? Pricing,
+    int Concurrency)
 {
     public static RunnerOptions Parse(string[] args)
     {
@@ -152,6 +189,12 @@ internal sealed record RunnerOptions(
         string? report = null;
         var dryRun = false;
         int? maximumRepetitions = null;
+        var provider = Providers.Jev;
+        string? model = null;
+        string? effort = null;
+        double? inputPrice = null;
+        double? outputPrice = null;
+        var concurrency = 1;
 
         for (var index = 0; index < args.Length; index++)
         {
@@ -169,6 +212,24 @@ internal sealed record RunnerOptions(
                 case "--max-repetitions" when index + 1 < args.Length:
                     maximumRepetitions = int.Parse(args[++index], CultureInfo.InvariantCulture);
                     break;
+                case "--provider" when index + 1 < args.Length:
+                    provider = args[++index];
+                    break;
+                case "--model" when index + 1 < args.Length:
+                    model = args[++index];
+                    break;
+                case "--effort" when index + 1 < args.Length:
+                    effort = args[++index];
+                    break;
+                case "--input-price" when index + 1 < args.Length:
+                    inputPrice = double.Parse(args[++index], CultureInfo.InvariantCulture);
+                    break;
+                case "--output-price" when index + 1 < args.Length:
+                    outputPrice = double.Parse(args[++index], CultureInfo.InvariantCulture);
+                    break;
+                case "--concurrency" when index + 1 < args.Length:
+                    concurrency = int.Parse(args[++index], CultureInfo.InvariantCulture);
+                    break;
                 case "--dry-run":
                     dryRun = true;
                     break;
@@ -177,7 +238,7 @@ internal sealed record RunnerOptions(
             }
         }
 
-        output ??= $"artifacts/results/{Path.GetFileNameWithoutExtension(dataset)}-" +
+        output ??= $"artifacts/results/{Path.GetFileNameWithoutExtension(dataset)}-{provider}-" +
             $"{DateTimeOffset.UtcNow:yyyyMMdd-HHmmss}.jsonl";
 
         if (maximumRepetitions is < 1)
@@ -185,12 +246,29 @@ internal sealed record RunnerOptions(
             throw new ArgumentException("--max-repetitions must be at least 1.");
         }
 
+        if (concurrency is < 1 or > 16)
+        {
+            throw new ArgumentException("--concurrency must be between 1 and 16.");
+        }
+
+        if (inputPrice is null != (outputPrice is null))
+        {
+            throw new ArgumentException("--input-price and --output-price must be given together.");
+        }
+
         return new RunnerOptions(
             dataset,
             output,
             report ?? Path.ChangeExtension(output, ".report.json"),
             dryRun,
-            maximumRepetitions);
+            maximumRepetitions,
+            provider,
+            model,
+            effort,
+            inputPrice is { } input && outputPrice is { } outputRate
+                ? new ProviderPricing(input, outputRate)
+                : null,
+            concurrency);
     }
 }
 
@@ -342,7 +420,9 @@ internal static class EvaluationIo
 
     public static JsonSerializerOptions ReportJsonOptions { get; } = new(JsonOptions)
     {
-        WriteIndented = true
+        WriteIndented = true,
+        // A run where every call failed summarizes to NaN rather than no summary.
+        NumberHandling = JsonNumberHandling.AllowNamedFloatingPointLiterals
     };
 
     public static async Task<EvaluationSuiteDefinition> LoadSuiteAsync(string path)
@@ -410,6 +490,9 @@ internal static class EvaluationConsole
         Console.WriteLine(
             $"tokens: input={report.InputTokens:N0}, output={report.OutputTokens:N0} " +
             $"over {report.SuccessfulRuns:N0} successful runs");
+        Console.WriteLine(report.EstimatedCostUsd is { } cost
+            ? $"cost: ${cost:F4} total, ${report.CostPerDecisionUsd:F6} per decision"
+            : "cost: no published per-token price for this provider");
 
         if (report.MetamorphicComparisons.Count > 0)
         {

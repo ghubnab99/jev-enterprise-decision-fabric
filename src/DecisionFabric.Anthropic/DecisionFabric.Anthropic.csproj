@@ -1,0 +1,11 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <Description>Structured-output Claude baseline implementing the decision provider abstraction.</Description>
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\DecisionFabric.Core\DecisionFabric.Core.csproj" />
+  </ItemGroup>
+  <ItemGroup>
+    <PackageReference Include="Anthropic" Version="12.49.0" />
+  </ItemGroup>
+</Project>
