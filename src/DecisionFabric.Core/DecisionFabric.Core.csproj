@@ -1,0 +1,5 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <Description>Provider-neutral typed contracts for semantic decision systems.</Description>
+  </PropertyGroup>
+</Project>

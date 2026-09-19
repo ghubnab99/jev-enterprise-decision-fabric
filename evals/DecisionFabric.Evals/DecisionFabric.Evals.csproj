@@ -1,0 +1,10 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <Description>Reproducible enterprise evaluation runner for Jev decision contracts.</Description>
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\..\src\DecisionFabric.Core\DecisionFabric.Core.csproj" />
+    <ProjectReference Include="..\..\src\DecisionFabric.TypeSafe\DecisionFabric.TypeSafe.csproj" />
+  </ItemGroup>
+</Project>

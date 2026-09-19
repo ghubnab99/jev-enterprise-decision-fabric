@@ -1,0 +1,136 @@
+{
+  "id": "payment-card-block-negation-v1",
+  "description": "Measures exact-repeat and meaning-preserving paraphrase stability around explicit requests to keep a payment card active.",
+  "contract": {
+    "id": "payment-dispute-triage",
+    "version": "1.0.0",
+    "description": "Atomic customer-intent decisions for payment dispute intake.",
+    "questions": {
+      "block_card_requested": {
+        "type": "noul",
+        "instructions": "Does `customer_message` indicate that the customer wants their card to be blocked or frozen now?",
+        "criteria": {
+          "true": "The customer directly asks or clearly indicates that the card should be blocked, frozen, disabled, or stopped now.",
+          "false": "The customer does not request blocking, is only asking for information, or explicitly asks that the card remain active or not be blocked yet."
+        }
+      },
+      "primary_intent": {
+        "type": "choice",
+        "instructions": "What is the customer's primary intent in `customer_message`?",
+        "criteria": {
+          "dispute_transaction": "The customer is contesting or questioning whether they authorized the transaction.",
+          "block_card": "The customer primarily wants their card blocked, frozen, disabled, or stopped.",
+          "request_information": "The customer primarily wants information or clarification without requesting an account action.",
+          "other": "The primary intent does not match the other categories."
+        }
+      },
+      "urgency": {
+        "type": "score",
+        "instructions": "How urgently does `customer_message` require operational attention?",
+        "criteria": [
+          "No operational urgency is expressed.",
+          "Prompt attention is advisable, but immediate intervention is not requested.",
+          "Immediate intervention or account action is explicitly requested."
+        ]
+      }
+    }
+  },
+  "cases": [
+    {
+      "id": "explicit-negative-contraction",
+      "family": "exact-repeat",
+      "state": { "customer_message": "I didn't make this payment. Don't block the card yet." },
+      "expectedBehavior": "The dispute is clear, but blocking is explicitly rejected for now.",
+      "repetitions": 20,
+      "expectations": { "block_card_requested": { "maximum": 0.25 }, "primary_intent": { "choice": "dispute_transaction" } }
+    },
+    {
+      "id": "explicit-negative-expanded",
+      "family": "lexical-paraphrase",
+      "state": { "customer_message": "I did not make this payment. Do not block the card yet." },
+      "expectedBehavior": "Changing contractions must not change the operational decision.",
+      "repetitions": 20,
+      "expectations": { "block_card_requested": { "maximum": 0.25 }, "primary_intent": { "choice": "dispute_transaction" } }
+    },
+    {
+      "id": "keep-card-active",
+      "family": "semantic-paraphrase",
+      "state": { "customer_message": "I don't recognize this payment, but keep my card active for now." },
+      "expectedBehavior": "The card should remain active.",
+      "repetitions": 10,
+      "expectations": { "block_card_requested": { "maximum": 0.25 }, "primary_intent": { "choice": "dispute_transaction" } }
+    },
+    {
+      "id": "leave-card-usable",
+      "family": "semantic-paraphrase",
+      "state": { "customer_message": "This transaction isn't mine. Please leave the card usable while you investigate." },
+      "expectedBehavior": "The card should remain usable.",
+      "repetitions": 10,
+      "expectations": { "block_card_requested": { "maximum": 0.25 }, "primary_intent": { "choice": "dispute_transaction" } }
+    },
+    {
+      "id": "refrain-from-freezing",
+      "family": "semantic-paraphrase",
+      "state": { "customer_message": "I want to dispute this charge. Please refrain from freezing my card at this stage." },
+      "expectedBehavior": "Freezing is explicitly rejected.",
+      "repetitions": 10,
+      "expectations": { "block_card_requested": { "maximum": 0.25 }, "primary_intent": { "choice": "dispute_transaction" } }
+    },
+    {
+      "id": "wait-before-freeze",
+      "family": "semantic-paraphrase",
+      "state": { "customer_message": "I didn't authorize the payment, but wait before freezing anything." },
+      "expectedBehavior": "No freeze should happen yet.",
+      "repetitions": 10,
+      "expectations": { "block_card_requested": { "maximum": 0.25 }, "primary_intent": { "choice": "dispute_transaction" } }
+    },
+    {
+      "id": "clear-positive-freeze",
+      "family": "positive-boundary",
+      "state": { "customer_message": "Freeze this card immediately. I do not recognize the transaction." },
+      "expectedBehavior": "The customer explicitly requests an immediate freeze.",
+      "repetitions": 10,
+      "expectations": { "block_card_requested": { "minimum": 0.75 }, "primary_intent": { "choice": "block_card" } }
+    },
+    {
+      "id": "clear-positive-disable",
+      "family": "positive-paraphrase",
+      "state": { "customer_message": "Disable my card now and investigate this payment." },
+      "expectedBehavior": "The customer explicitly requests immediate disabling.",
+      "repetitions": 10,
+      "expectations": { "block_card_requested": { "minimum": 0.75 }, "primary_intent": { "choice": "block_card" } }
+    },
+    {
+      "id": "authorized-negative",
+      "family": "negative-boundary",
+      "state": { "customer_message": "I made this purchase. Do not block my card." },
+      "expectedBehavior": "The transaction is authorized and blocking is explicitly rejected.",
+      "repetitions": 10,
+      "expectations": { "block_card_requested": { "maximum": 0.25 } }
+    },
+    {
+      "id": "information-only",
+      "family": "missing-evidence",
+      "state": { "customer_message": "Can someone tell me what ABC Digital is?" },
+      "expectedBehavior": "This is an information request, not an account-action request.",
+      "repetitions": 10,
+      "expectations": { "block_card_requested": { "maximum": 0.25 }, "primary_intent": { "choice": "request_information" } }
+    },
+    {
+      "id": "contradictory",
+      "family": "genuine-ambiguity",
+      "state": { "customer_message": "Keep the card active—actually, maybe freeze it. I'm not sure." },
+      "expectedBehavior": "Uncertainty should be visible and deterministic policy should avoid automatic action.",
+      "repetitions": 10,
+      "expectations": {}
+    },
+    {
+      "id": "double-negation",
+      "family": "linguistic-stress",
+      "state": { "customer_message": "I don't want you not to block my card." },
+      "expectedBehavior": "This deliberately difficult construction tests known negation weakness; no hard threshold is asserted.",
+      "repetitions": 10,
+      "expectations": {}
+    }
+  ]
+}

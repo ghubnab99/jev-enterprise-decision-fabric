@@ -1,0 +1,8 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <Description>Deterministic policy routing for semantic decision results.</Description>
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\DecisionFabric.Core\DecisionFabric.Core.csproj" />
+  </ItemGroup>
+</Project>

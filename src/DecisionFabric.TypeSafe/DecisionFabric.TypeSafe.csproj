@@ -1,0 +1,8 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <Description>TypeSafe Jev provider for the Enterprise Decision Fabric.</Description>
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\DecisionFabric.Core\DecisionFabric.Core.csproj" />
+  </ItemGroup>
+</Project>
