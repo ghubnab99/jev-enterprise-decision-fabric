@@ -10,8 +10,8 @@ jobs:
   payment-negation:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-dotnet@v4
+      - uses: actions/checkout@v7
+      - uses: actions/setup-dotnet@v6
         with:
           dotnet-version: 10.0.x
       - name: Verify API key is configured
@@ -27,7 +27,7 @@ jobs:
           --output artifacts/results/payment-card-block-negation-v1.jsonl
       - name: Upload raw results
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: payment-card-block-negation-v1
           path: artifacts/results/payment-card-block-negation-v1.jsonl
