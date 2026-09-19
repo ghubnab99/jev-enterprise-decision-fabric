@@ -143,7 +143,7 @@ public sealed class AgentActionDatasetTests
         return true;
     }
 
-    private static EvaluationSuiteDefinition LoadSuite(string fileName)
+    internal static EvaluationSuiteDefinition LoadSuite(string fileName)
     {
         var directory = new DirectoryInfo(AppContext.BaseDirectory);
         while (directory is not null &&
