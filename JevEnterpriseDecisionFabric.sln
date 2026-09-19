@@ -10,6 +10,8 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "DecisionFabric.Policy", "sr
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "DecisionFabric.Evals", "evals\DecisionFabric.Evals\DecisionFabric.Evals.csproj", "{AC6576CF-0EA3-4979-8E3F-0BB11C99E724}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "DecisionFabric.PaymentDisputes.Api", "samples\DecisionFabric.PaymentDisputes.Api\DecisionFabric.PaymentDisputes.Api.csproj", "{C0E5C3B9-0E4E-4A57-A0E0-5F998A8B4127}"
+EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "DecisionFabric.Tests", "tests\DecisionFabric.Tests\DecisionFabric.Tests.csproj", "{C3EBB82B-1980-4285-84CA-B85E4C6E2D5B}"
 EndProject
 Global
@@ -34,6 +36,10 @@ Global
 		{AC6576CF-0EA3-4979-8E3F-0BB11C99E724}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{AC6576CF-0EA3-4979-8E3F-0BB11C99E724}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{AC6576CF-0EA3-4979-8E3F-0BB11C99E724}.Release|Any CPU.Build.0 = Release|Any CPU
+		{C0E5C3B9-0E4E-4A57-A0E0-5F998A8B4127}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{C0E5C3B9-0E4E-4A57-A0E0-5F998A8B4127}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{C0E5C3B9-0E4E-4A57-A0E0-5F998A8B4127}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{C0E5C3B9-0E4E-4A57-A0E0-5F998A8B4127}.Release|Any CPU.Build.0 = Release|Any CPU
 		{C3EBB82B-1980-4285-84CA-B85E4C6E2D5B}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
 		{C3EBB82B-1980-4285-84CA-B85E4C6E2D5B}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{C3EBB82B-1980-4285-84CA-B85E4C6E2D5B}.Release|Any CPU.ActiveCfg = Release|Any CPU

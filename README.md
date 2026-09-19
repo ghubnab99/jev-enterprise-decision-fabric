@@ -27,6 +27,8 @@ src/
 evals/
   DecisionFabric.Evals/      JSON-driven repeatable evaluation runner
   datasets/                  versioned labelled cases
+samples/
+  DecisionFabric.PaymentDisputes.Api/  end-to-end ASP.NET Core decision API
 tests/
   DecisionFabric.Tests/      wire-contract, parsing and policy tests
 ```
@@ -66,6 +68,34 @@ threshold alone.
 See [the complete live findings](docs/evaluations/payment-card-block-negation-v1.md),
 including latency, token usage, per-case variance, ambiguity behavior and the
 resulting policy requirement.
+
+## End-to-end payment dispute sample
+
+[`DecisionFabric.PaymentDisputes.Api`](samples/DecisionFabric.PaymentDisputes.Api)
+demonstrates the complete boundary from customer language to typed Jev evidence,
+deterministic policy, confirmation and an authorized next action.
+
+The ASP.NET Core API includes:
+
+- fixture mode using recorded evaluation values, requiring no credentials;
+- opt-in live TypeSafe mode;
+- `notAuthorized`, `awaitingConfirmation`, `authorizedByPolicy` and
+  `authorizedByConfirmation` states;
+- an idempotent confirmation transition;
+- redacted audit events containing an input SHA-256 fingerprint rather than raw
+  customer text;
+- `ActivitySource` and `Meter` instrumentation for OpenTelemetry subscribers;
+- OpenAPI output and end-to-end HTTP tests; and
+- no real card integration or side effect.
+
+Run the zero-credential demo:
+
+```bash
+dotnet run --project samples/DecisionFabric.PaymentDisputes.Api
+```
+
+See [the sample guide](samples/DecisionFabric.PaymentDisputes.Api/README.md) for
+fixture requests, live configuration and the confirmation boundary.
 
 ## Run locally
 
@@ -117,7 +147,8 @@ Primary references:
 
 - Add adversarial multilingual and punctuation variants to the risk-gate suite.
 - Add OpenTelemetry spans and redacted decision-event logging.
-- Build Payment Dispute Intelligence and Agent Action Gate samples.
+- Add a small decision-inspection dashboard for the payment sample.
+- Build the Agent Action Gate sample.
 - Encode the architecture as a coding-agent skill after the abstractions are evidence-backed.
 
 This is independent experimental work and is not an official TypeSafe AI project.

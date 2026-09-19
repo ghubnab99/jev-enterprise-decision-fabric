@@ -25,4 +25,4 @@ flowchart TD
 
 ## Current slice
 
-The first slice provides provider-neutral contracts, a direct Jev HTTP provider, deterministic Noul routing, a destructive-action confirmation gate, and a JSON-driven evaluation runner with decision-flip and metamorphic reporting. The 140-run payment-negation suite supplies the first evidence baseline; payment and agent-safety samples build on these boundaries.
+The first slice provides provider-neutral contracts, a direct Jev HTTP provider, deterministic Noul routing, a destructive-action confirmation gate, and a JSON-driven evaluation runner with decision-flip and metamorphic reporting. The 140-run payment-negation suite supplies the first evidence baseline. The ASP.NET Core payment-dispute sample now demonstrates the complete evidence → policy → confirmation → authorized-next-action boundary without connecting to a real card processor.
