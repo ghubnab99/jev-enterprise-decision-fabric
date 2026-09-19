@@ -146,7 +146,7 @@ internal static class EvaluationReportBuilder
         {
             CaseId = testCase.Id,
             Family = testCase.Family,
-            SuccessfulRuns = records.Count,
+            SuccessfulRuns = records.Length,
             RequestedProbability = probabilities.Length == 0 ? null : Summarize(probabilities),
             NoulBandCounts = bandCounts,
             ActionDispositionCounts = actionDispositionCounts,
@@ -259,7 +259,7 @@ internal static class EvaluationReportBuilder
     {
         var mean = values.Average();
         return new NumericSummary(
-            values.Count,
+            values.Length,
             mean,
             values.Min(),
             values.Max(),
