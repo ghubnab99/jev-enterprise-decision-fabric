@@ -3,10 +3,14 @@
     <Description>End-to-end payment dispute decision sample using Jev evidence and deterministic authorization policy.</Description>
   </PropertyGroup>
   <ItemGroup>
+    <InternalsVisibleTo Include="DecisionFabric.Tests" />
+  </ItemGroup>
+  <ItemGroup>
     <PackageReference Include="Microsoft.AspNetCore.OpenApi" Version="10.0.12" />
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="..\..\src\DecisionFabric.Core\DecisionFabric.Core.csproj" />
+    <ProjectReference Include="..\..\src\DecisionFabric.Hosting\DecisionFabric.Hosting.csproj" />
     <ProjectReference Include="..\..\src\DecisionFabric.Policy\DecisionFabric.Policy.csproj" />
     <ProjectReference Include="..\..\src\DecisionFabric.TypeSafe\DecisionFabric.TypeSafe.csproj" />
   </ItemGroup>

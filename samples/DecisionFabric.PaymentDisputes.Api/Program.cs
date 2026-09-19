@@ -1,7 +1,7 @@
 using System.Text.Json;
 using System.Text.Json.Serialization;
-using DecisionFabric.Core;
-using DecisionFabric.TypeSafe;
+using DecisionFabric.Hosting;
+using Microsoft.Extensions.Options;
 
 namespace DecisionFabric.PaymentDisputes.Api;
 
@@ -20,7 +20,15 @@ public partial class Program
         builder.Services.AddSingleton<PaymentDisputeDecisionStore>();
         builder.Services.AddSingleton<IDecisionAuditSink, LoggingDecisionAuditSink>();
         builder.Services.AddSingleton<PaymentDisputeDecisionService>();
-        AddDecisionProvider(builder);
+        builder.Services.AddDecisionFabric(builder.Configuration);
+        builder.Services.AddSingleton(PaymentDisputeFixtures.Create());
+        builder.Services.AddOptions<PaymentDisputePolicyOptions>()
+            .BindConfiguration(PaymentDisputePolicyOptions.SectionName)
+            .ValidateOnStart();
+        builder.Services.AddSingleton<
+            IValidateOptions<PaymentDisputePolicyOptions>,
+            PaymentDisputePolicyOptionsValidator>();
+        builder.Services.AddSingleton<PaymentDisputePack>();
 
         var app = builder.Build();
         app.UseExceptionHandler();
@@ -132,38 +140,4 @@ public partial class Program
         {
             [propertyName] = [message]
         });
-
-    private static void AddDecisionProvider(WebApplicationBuilder builder)
-    {
-        var mode = builder.Configuration["DecisionFabric:Provider"] ?? "Fixture";
-        if (string.Equals(mode, "Fixture", StringComparison.OrdinalIgnoreCase))
-        {
-            builder.Services.AddSingleton<IDecisionProvider, FixtureDecisionProvider>();
-            return;
-        }
-
-        if (!string.Equals(mode, "TypeSafe", StringComparison.OrdinalIgnoreCase))
-        {
-            throw new InvalidOperationException(
-                "DecisionFabric:Provider must be either 'Fixture' or 'TypeSafe'.");
-        }
-
-        var apiKey = builder.Configuration["DecisionFabric:TypeSafeApiKey"] ??
-            Environment.GetEnvironmentVariable("TYPESAFE_API_KEY");
-        if (string.IsNullOrWhiteSpace(apiKey))
-        {
-            throw new InvalidOperationException(
-                "TypeSafe provider mode requires DecisionFabric:TypeSafeApiKey or TYPESAFE_API_KEY.");
-        }
-
-        builder.Services.AddHttpClient("typesafe");
-        builder.Services.AddSingleton<IDecisionProvider>(services =>
-            new TypeSafeDecisionProvider(
-                services.GetRequiredService<IHttpClientFactory>().CreateClient("typesafe"),
-                apiKey,
-                new TypeSafeClientOptions
-                {
-                    Model = builder.Configuration["DecisionFabric:Model"] ?? "jev-1.13.0"
-                }));
-    }
 }

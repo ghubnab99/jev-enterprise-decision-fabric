@@ -1,25 +1,17 @@
 using System.Diagnostics;
 using System.Security.Cryptography;
 using System.Text;
-using System.Text.Json;
 using DecisionFabric.Core;
 using DecisionFabric.Policy;
 
 namespace DecisionFabric.PaymentDisputes.Api;
 
 internal sealed class PaymentDisputeDecisionService(
-    IDecisionProvider provider,
+    IDecisionFabric fabric,
+    PaymentDisputePack pack,
     PaymentDisputeDecisionStore store,
-    IDecisionAuditSink auditSink,
-    IConfiguration configuration)
+    IDecisionAuditSink auditSink)
 {
-    private static readonly DestructiveActionGateOptions GateOptions = new()
-    {
-        RequestThresholds = new NoulPolicyThresholds(0.25, 0.75),
-        RequiredIntent = PaymentDisputeContract.BlockCardIntent,
-        MinimumIntentConfidence = 0.8
-    };
-
     public async Task<PaymentDisputeDecisionResponse> TriageAsync(
         string customerMessage,
         CancellationToken cancellationToken = default)
@@ -27,37 +19,16 @@ internal sealed class PaymentDisputeDecisionService(
         using var activity = DecisionTelemetry.ActivitySource.StartActivity(
             "payment_dispute.triage",
             ActivityKind.Internal);
-        var state = JsonSerializer.SerializeToElement(new Dictionary<string, string>
-        {
-            ["customer_message"] = customerMessage
-        });
-        var response = await provider.EvaluateAsync(
-            new DecisionEvaluationRequest
-            {
-                State = state,
-                Contract = PaymentDisputeContract.Definition,
-                Model = configuration["DecisionFabric:Model"]
-            },
+        var result = await fabric.EvaluateAsync(
+            pack,
+            new PaymentDisputeInput(customerMessage),
             cancellationToken);
 
-        var blockCardRequested = ReadAnswer<NoulAnswer>(
-            response,
-            PaymentDisputeContract.BlockCardRequested);
-        var primaryIntent = ReadAnswer<ChoiceAnswer>(
-            response,
-            PaymentDisputeContract.PrimaryIntent);
-        var urgency = ReadAnswer<ScoreAnswer>(
-            response,
-            PaymentDisputeContract.Urgency);
-        var riskSignals = LinguisticRiskDetector.Detect(customerMessage);
-        var policyDecision = DestructiveActionGate.Evaluate(
-            new DestructiveActionEvidence
-            {
-                ActionRequested = blockCardRequested,
-                PrimaryIntent = primaryIntent,
-                LinguisticRiskSignals = riskSignals
-            },
-            GateOptions);
+        var blockCardRequested = result.Evidence.Noul(PaymentDisputeContract.BlockCardRequested);
+        var primaryIntent = result.Evidence.Choice(PaymentDisputeContract.PrimaryIntent);
+        var urgency = result.Evidence.Score(PaymentDisputeContract.Urgency);
+        var riskSignals = result.Outcome.RiskSignals;
+        var policyDecision = result.Outcome.Gate;
         var (authorizationState, nextAction) = MapAuthorization(policyDecision.Disposition);
         var now = DateTimeOffset.UtcNow;
         var decision = new PaymentDisputeDecisionResponse
@@ -76,12 +47,12 @@ internal sealed class PaymentDisputeDecisionService(
             },
             RiskSignals = ExpandSignals(riskSignals),
             PolicyReasons = policyDecision.Reasons,
-            Model = response.Model,
-            ContractId = PaymentDisputeContract.Definition.Id,
-            ContractVersion = PaymentDisputeContract.Definition.Version,
-            DurationMilliseconds = response.Duration.TotalMilliseconds,
-            InputTokens = response.Usage.InputTokens,
-            OutputTokens = response.Usage.OutputTokens,
+            Model = result.Model,
+            ContractId = result.ContractId,
+            ContractVersion = result.ContractVersion,
+            DurationMilliseconds = result.Duration.TotalMilliseconds,
+            InputTokens = result.Usage.InputTokens,
+            OutputTokens = result.Usage.OutputTokens,
             CreatedAt = now
         };
         var inputSha256 = Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(customerMessage)));
@@ -129,20 +100,6 @@ internal sealed class PaymentDisputeDecisionService(
         }
 
         return result;
-    }
-
-    private static TAnswer ReadAnswer<TAnswer>(
-        DecisionEvaluationResponse response,
-        string questionId)
-        where TAnswer : DecisionAnswer
-    {
-        if (!response.Answers.TryGetValue(questionId, out var answer) || answer is not TAnswer typed)
-        {
-            throw new InvalidOperationException(
-                $"Decision response did not contain expected {typeof(TAnswer).Name} answer '{questionId}'.");
-        }
-
-        return typed;
     }
 
     private static (DecisionAuthorizationState State, PaymentDisputeNextAction NextAction)
