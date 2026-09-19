@@ -48,6 +48,7 @@ public sealed record PaymentDisputeDecisionResponse
     public required string Model { get; init; }
     public required string ContractId { get; init; }
     public required string ContractVersion { get; init; }
+    public required string PolicyVersion { get; init; }
     public required double DurationMilliseconds { get; init; }
     public required int InputTokens { get; init; }
     public required int OutputTokens { get; init; }
@@ -57,7 +58,8 @@ public sealed record PaymentDisputeDecisionResponse
 
 internal sealed record StoredPaymentDisputeDecision(
     PaymentDisputeDecisionResponse Response,
-    string InputSha256);
+    string InputSha256,
+    string? ConfirmationReference = null);
 
 internal enum ConfirmationStatus
 {

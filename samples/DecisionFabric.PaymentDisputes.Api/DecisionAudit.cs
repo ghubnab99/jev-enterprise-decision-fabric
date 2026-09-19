@@ -8,8 +8,10 @@ internal sealed record DecisionAuditEvent(
     string InputSha256,
     string Model,
     string ContractVersion,
+    string PolicyVersion,
     DestructiveActionDisposition PolicyDisposition,
     DecisionAuthorizationState AuthorizationState,
+    string? ConfirmationReference,
     DateTimeOffset OccurredAt);
 
 internal interface IDecisionAuditSink
@@ -34,8 +36,10 @@ internal sealed class LoggingDecisionAuditSink(ILogger<LoggingDecisionAuditSink>
             auditEvent.InputSha256,
             auditEvent.Model,
             auditEvent.ContractVersion,
+            auditEvent.PolicyVersion,
             auditEvent.PolicyDisposition,
-            auditEvent.AuthorizationState);
+            auditEvent.AuthorizationState,
+            auditEvent.ConfirmationReference);
         return ValueTask.CompletedTask;
     }
 }
@@ -45,7 +49,7 @@ internal static partial class DecisionAuditLog
     [LoggerMessage(
         EventId = 4100,
         Level = LogLevel.Information,
-        Message = "Decision audit {EventType}: DecisionId={DecisionId}, InputSha256={InputSha256}, Model={Model}, ContractVersion={ContractVersion}, PolicyDisposition={PolicyDisposition}, AuthorizationState={AuthorizationState}")]
+        Message = "Decision audit {EventType}: DecisionId={DecisionId}, InputSha256={InputSha256}, Model={Model}, ContractVersion={ContractVersion}, PolicyVersion={PolicyVersion}, PolicyDisposition={PolicyDisposition}, AuthorizationState={AuthorizationState}, ConfirmationReference={ConfirmationReference}")]
     public static partial void Recorded(
         ILogger logger,
         string eventType,
@@ -53,6 +57,8 @@ internal static partial class DecisionAuditLog
         string inputSha256,
         string model,
         string contractVersion,
+        string policyVersion,
         DestructiveActionDisposition policyDisposition,
-        DecisionAuthorizationState authorizationState);
+        DecisionAuthorizationState authorizationState,
+        string? confirmationReference);
 }

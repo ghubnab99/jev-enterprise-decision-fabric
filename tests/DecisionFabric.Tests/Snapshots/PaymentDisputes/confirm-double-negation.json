@@ -19,6 +19,7 @@
   "model": "fixture/jev-1.13.0-recorded",
   "contractId": "payment-dispute-triage",
   "contractVersion": "1.0.0",
+  "policyVersion": "payment-dispute-gate/sha256:a0e9832f7842",
   "inputTokens": 0,
   "outputTokens": 0
 }

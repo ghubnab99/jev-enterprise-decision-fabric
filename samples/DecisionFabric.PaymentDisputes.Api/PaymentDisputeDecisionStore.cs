@@ -23,7 +23,10 @@ internal sealed class PaymentDisputeDecisionStore
         }
     }
 
-    public ConfirmationResult Confirm(string decisionId, DateTimeOffset confirmedAt)
+    public ConfirmationResult Confirm(
+        string decisionId,
+        string confirmationReference,
+        DateTimeOffset confirmedAt)
     {
         lock (_gate)
         {
@@ -49,7 +52,8 @@ internal sealed class PaymentDisputeDecisionStore
                     AuthorizationState = DecisionAuthorizationState.AuthorizedByConfirmation,
                     NextAction = PaymentDisputeNextAction.BlockCard,
                     ConfirmedAt = confirmedAt
-                }
+                },
+                ConfirmationReference = confirmationReference
             };
             _decisions[decisionId] = confirmed;
             return new ConfirmationResult(ConfirmationStatus.Confirmed, confirmed.Response);

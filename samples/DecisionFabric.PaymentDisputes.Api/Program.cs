@@ -120,7 +120,10 @@ public partial class Program
                 "Confirmation reference cannot exceed 200 characters.");
         }
 
-        var result = await service.ConfirmAsync(decisionId, cancellationToken);
+        var result = await service.ConfirmAsync(
+            decisionId,
+            request.ConfirmationReference,
+            cancellationToken);
         return result.Status switch
         {
             ConfirmationStatus.Confirmed or ConfirmationStatus.AlreadyConfirmed =>

@@ -50,6 +50,7 @@ internal sealed class PaymentDisputeDecisionService(
             Model = result.Model,
             ContractId = result.ContractId,
             ContractVersion = result.ContractVersion,
+            PolicyVersion = result.PolicyVersion,
             DurationMilliseconds = result.Duration.TotalMilliseconds,
             InputTokens = result.Usage.InputTokens,
             OutputTokens = result.Usage.OutputTokens,
@@ -65,12 +66,13 @@ internal sealed class PaymentDisputeDecisionService(
         activity?.SetTag("decision.id", decision.DecisionId);
         activity?.SetTag("decision.contract.id", decision.ContractId);
         activity?.SetTag("decision.contract.version", decision.ContractVersion);
+        activity?.SetTag("decision.policy.version", decision.PolicyVersion);
         activity?.SetTag("decision.policy.disposition", decision.PolicyDisposition.ToString());
         activity?.SetTag("decision.authorization.state", decision.AuthorizationState.ToString());
         activity?.SetTag("gen_ai.response.model", decision.Model);
 
         await auditSink.WriteAsync(
-            CreateAuditEvent("evaluated", decision, inputSha256, now),
+            CreateAuditEvent("evaluated", decision, inputSha256, confirmationReference: null, now),
             cancellationToken);
         return decision;
     }
@@ -80,13 +82,14 @@ internal sealed class PaymentDisputeDecisionService(
 
     public async Task<ConfirmationResult> ConfirmAsync(
         string decisionId,
+        string confirmationReference,
         CancellationToken cancellationToken = default)
     {
         using var activity = DecisionTelemetry.ActivitySource.StartActivity(
             "payment_dispute.confirm",
             ActivityKind.Internal);
         var confirmedAt = DateTimeOffset.UtcNow;
-        var result = store.Confirm(decisionId, confirmedAt);
+        var result = store.Confirm(decisionId, confirmationReference, confirmedAt);
         activity?.SetTag("decision.id", decisionId);
         activity?.SetTag("decision.confirmation.status", result.Status.ToString());
 
@@ -95,7 +98,7 @@ internal sealed class PaymentDisputeDecisionService(
             var inputSha256 = store.Get(decisionId)!.InputSha256;
             DecisionTelemetry.RecordConfirmation();
             await auditSink.WriteAsync(
-                CreateAuditEvent("confirmed", decision, inputSha256, confirmedAt),
+                CreateAuditEvent("confirmed", decision, inputSha256, confirmationReference, confirmedAt),
                 cancellationToken);
         }
 
@@ -125,6 +128,7 @@ internal sealed class PaymentDisputeDecisionService(
         string eventType,
         PaymentDisputeDecisionResponse decision,
         string inputSha256,
+        string? confirmationReference,
         DateTimeOffset occurredAt) =>
         new(
             eventType,
@@ -132,7 +136,9 @@ internal sealed class PaymentDisputeDecisionService(
             inputSha256,
             decision.Model,
             decision.ContractVersion,
+            decision.PolicyVersion,
             decision.PolicyDisposition,
             decision.AuthorizationState,
+            confirmationReference,
             occurredAt);
 }
