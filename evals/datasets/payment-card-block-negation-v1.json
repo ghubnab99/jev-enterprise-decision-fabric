@@ -35,6 +35,15 @@
       }
     }
   },
+  "actionPolicy": {
+    "requestQuestionId": "block_card_requested",
+    "intentQuestionId": "primary_intent",
+    "requiredIntent": "block_card",
+    "messageStateProperty": "customer_message",
+    "negativeAtOrBelow": 0.25,
+    "positiveAtOrAbove": 0.75,
+    "minimumIntentConfidence": 0.8
+  },
   "cases": [
     {
       "id": "explicit-negative-contraction",
@@ -131,6 +140,32 @@
       "expectedBehavior": "This deliberately difficult construction tests known negation weakness; no hard threshold is asserted.",
       "repetitions": 10,
       "expectations": {}
+    }
+  ],
+  "metamorphicRelations": [
+    {
+      "id": "negative-expression-invariance",
+      "baselineCaseId": "explicit-negative-contraction",
+      "variantCaseIds": [
+        "explicit-negative-expanded",
+        "keep-card-active",
+        "leave-card-usable",
+        "refrain-from-freezing",
+        "wait-before-freeze"
+      ],
+      "questionId": "block_card_requested",
+      "maximumMeanDelta": 0.05,
+      "requireSameDecisionBand": true,
+      "requireSamePrimaryChoice": true
+    },
+    {
+      "id": "positive-action-paraphrase",
+      "baselineCaseId": "clear-positive-freeze",
+      "variantCaseIds": ["clear-positive-disable"],
+      "questionId": "block_card_requested",
+      "maximumMeanDelta": 0.05,
+      "requireSameDecisionBand": true,
+      "requireSamePrimaryChoice": true
     }
   ]
 }

@@ -12,6 +12,7 @@
     </PackageReference>
   </ItemGroup>
   <ItemGroup>
+    <ProjectReference Include="..\..\evals\DecisionFabric.Evals\DecisionFabric.Evals.csproj" />
     <ProjectReference Include="..\..\src\DecisionFabric.Core\DecisionFabric.Core.csproj" />
     <ProjectReference Include="..\..\src\DecisionFabric.TypeSafe\DecisionFabric.TypeSafe.csproj" />
     <ProjectReference Include="..\..\src\DecisionFabric.Policy\DecisionFabric.Policy.csproj" />

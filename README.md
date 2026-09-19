@@ -13,7 +13,7 @@ This project separates four concerns:
 1. **Versioned semantic contracts** — atomic Noul, Choice and Score questions.
 2. **Provider execution** — one batched Jev request for questions sharing the same state.
 3. **Typed evidence** — probabilities, confidence, model version, usage and latency.
-4. **Deterministic policy** — thresholds, uncertainty bands, confirmation, human review and System 2 escalation.
+4. **Deterministic policy** — thresholds, independent evidence, linguistic-risk gates, confirmation, human review and System 2 escalation.
 
 See [the architecture direction](docs/architecture.md).
 
@@ -49,7 +49,9 @@ Each request batches three independent decisions against the same state:
 - `primary_intent` — Choice; and
 - `urgency` — Score.
 
-The runner writes one JSON object per run with the state case, contract version, returned model version, complete typed answers, usage, latency, expectation result and error details. It also prints mean, minimum, maximum and population standard deviation for `block_card_requested` by case.
+The runner writes one JSON object per run with the state case, contract version, returned model version, complete typed answers, action-policy decision, usage, latency, expectation result and error details. It also emits an indented JSON report containing per-case decision-band and primary-choice flips plus declared metamorphic comparisons.
+
+The destructive-action gate authorizes an action only when the Noul result is above the positive boundary, the independent Choice result agrees, Choice confidence clears the configured minimum, and no deterministic linguistic-risk signal is present. Anything uncertain or risky requires confirmation; a clear negative is not authorized.
 
 The first thresholds are hypotheses for evaluation—not production guarantees. They must be recalibrated from labelled data.
 
@@ -81,7 +83,8 @@ For a live evaluation, keep the key outside source control:
 export TYPESAFE_API_KEY="..."
 dotnet run --project evals/DecisionFabric.Evals -- \
   --dataset evals/datasets/payment-card-block-negation-v1.json \
-  --output artifacts/results/payment-card-block-negation-v1.jsonl
+  --output artifacts/results/payment-card-block-negation-v1.jsonl \
+  --report artifacts/results/payment-card-block-negation-v1.report.json
 ```
 
 PowerShell:
@@ -91,7 +94,7 @@ $env:TYPESAFE_API_KEY = "..."
 dotnet run --project evals/DecisionFabric.Evals -- --dataset evals/datasets/payment-card-block-negation-v1.json
 ```
 
-Alternatively, add `TYPESAFE_API_KEY` as a GitHub Actions repository secret and manually run the `live-evaluation` workflow. The secret is injected only into the evaluation step. Raw JSONL results are retained as a private workflow artifact for 14 days.
+Alternatively, add `TYPESAFE_API_KEY` as a GitHub Actions repository secret and manually run the `live-evaluation` workflow. The secret is injected only into the evaluation step. Raw JSONL and the machine-readable stability report are retained as a private workflow artifact for 14 days.
 
 ## Model and API contract
 
@@ -112,10 +115,9 @@ Primary references:
 
 ## Near-term milestones
 
-- Add a confirmation gate for destructive actions under linguistic risk.
-- Add decision-flip and metamorphic-test reports.
-- Build Payment Dispute Intelligence and Agent Action Gate samples.
+- Add adversarial multilingual and punctuation variants to the risk-gate suite.
 - Add OpenTelemetry spans and redacted decision-event logging.
+- Build Payment Dispute Intelligence and Agent Action Gate samples.
 - Encode the architecture as a coding-agent skill after the abstractions are evidence-backed.
 
 This is independent experimental work and is not an official TypeSafe AI project.

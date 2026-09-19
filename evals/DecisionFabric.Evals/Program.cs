@@ -2,6 +2,7 @@ using System.Diagnostics.CodeAnalysis;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 using DecisionFabric.Core;
+using DecisionFabric.Policy;
 using DecisionFabric.TypeSafe;
 
 namespace DecisionFabric.Evals;
@@ -11,7 +12,13 @@ internal static class Program
     private static readonly JsonSerializerOptions JsonOptions = new(JsonSerializerDefaults.Web)
     {
         WriteIndented = false,
-        DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull
+        DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull,
+        Converters = { new JsonStringEnumConverter(JsonNamingPolicy.CamelCase) }
+    };
+
+    private static readonly JsonSerializerOptions ReportJsonOptions = new(JsonOptions)
+    {
+        WriteIndented = true
     };
 
     public static async Task<int> Main(string[] args)
@@ -44,6 +51,7 @@ internal static class Program
 
             using var httpClient = new HttpClient();
             var provider = new TypeSafeDecisionProvider(httpClient, apiKey);
+            var allRuns = new List<EvaluationRunRecord>();
             var successfulRuns = new List<EvaluationRunRecord>();
             var failedCallCount = 0;
 
@@ -55,6 +63,7 @@ internal static class Program
                     var record = await ExecuteAsync(suite, testCase, run, provider);
                     await writer.WriteLineAsync(JsonSerializer.Serialize(record, JsonOptions));
                     await writer.FlushAsync();
+                    allRuns.Add(record);
 
                     if (record.Response is not null)
                     {
@@ -70,7 +79,15 @@ internal static class Program
             }
 
             PrintNoulSummary(successfulRuns);
+            var report = EvaluationReportBuilder.Build(suite, allRuns);
+            var reportPath = Path.GetFullPath(options.ReportPath);
+            Directory.CreateDirectory(Path.GetDirectoryName(reportPath)!);
+            await File.WriteAllTextAsync(
+                reportPath,
+                JsonSerializer.Serialize(report, ReportJsonOptions));
+            PrintEvaluationReport(report);
             Console.WriteLine($"Raw JSONL: {outputPath}");
+            Console.WriteLine($"Evaluation report: {reportPath}");
             if (failedCallCount > 0)
             {
                 Console.Error.WriteLine($"{failedCallCount} API call(s) failed. See the JSONL error fields.");
@@ -118,6 +135,9 @@ internal static class Program
                 throw new InvalidOperationException($"Expectation references unknown question '{expectedQuestion}'.");
             }
         }
+
+        ValidateActionPolicy(suite);
+        ValidateMetamorphicRelations(suite);
     }
 
     [SuppressMessage(
@@ -139,6 +159,7 @@ internal static class Program
                 Contract = suite.Contract
             });
             var failures = EvaluateExpectations(testCase.Expectations, response.Answers);
+            var actionDecision = EvaluateActionPolicy(suite.ActionPolicy, testCase.State, response.Answers);
 
             return new EvaluationRunRecord
             {
@@ -151,6 +172,7 @@ internal static class Program
                 ContractVersion = suite.Contract.Version,
                 ExpectedBehavior = testCase.ExpectedBehavior,
                 Response = response,
+                ActionDecision = actionDecision,
                 Passed = failures.Count == 0,
                 ExpectationFailures = failures,
                 DurationMilliseconds = response.Duration.TotalMilliseconds
@@ -173,6 +195,105 @@ internal static class Program
                 Error = exception.ToString(),
                 DurationMilliseconds = (DateTimeOffset.UtcNow - startedAt).TotalMilliseconds
             };
+        }
+    }
+
+    private static DestructiveActionDecision? EvaluateActionPolicy(
+        ActionPolicyDefinition? policy,
+        JsonElement state,
+        IReadOnlyDictionary<string, DecisionAnswer> answers)
+    {
+        if (policy is null)
+        {
+            return null;
+        }
+
+        var message = state.GetProperty(policy.MessageStateProperty).GetString() ?? string.Empty;
+        var actionRequested = (NoulAnswer)answers[policy.RequestQuestionId];
+        var primaryIntent = (ChoiceAnswer)answers[policy.IntentQuestionId];
+
+        return DestructiveActionGate.Evaluate(
+            new DestructiveActionEvidence
+            {
+                ActionRequested = actionRequested,
+                PrimaryIntent = primaryIntent,
+                LinguisticRiskSignals = LinguisticRiskDetector.Detect(message)
+            },
+            new DestructiveActionGateOptions
+            {
+                RequestThresholds = new NoulPolicyThresholds(
+                    policy.NegativeAtOrBelow,
+                    policy.PositiveAtOrAbove),
+                RequiredIntent = policy.RequiredIntent,
+                MinimumIntentConfidence = policy.MinimumIntentConfidence
+            });
+    }
+
+    private static void ValidateActionPolicy(EvaluationSuiteDefinition suite)
+    {
+        if (suite.ActionPolicy is not { } policy)
+        {
+            return;
+        }
+
+        if (!suite.Contract.Questions.TryGetValue(policy.RequestQuestionId, out var requestQuestion) ||
+            requestQuestion is not NoulQuestion)
+        {
+            throw new InvalidOperationException(
+                $"Action policy request question '{policy.RequestQuestionId}' must be a Noul question.");
+        }
+
+        if (!suite.Contract.Questions.TryGetValue(policy.IntentQuestionId, out var intentQuestion) ||
+            intentQuestion is not ChoiceQuestion)
+        {
+            throw new InvalidOperationException(
+                $"Action policy intent question '{policy.IntentQuestionId}' must be a Choice question.");
+        }
+
+        if (suite.Cases.Any(testCase =>
+                !testCase.State.TryGetProperty(policy.MessageStateProperty, out var message) ||
+                message.ValueKind != JsonValueKind.String))
+        {
+            throw new InvalidOperationException(
+                $"Every action-policy case requires string state property '{policy.MessageStateProperty}'.");
+        }
+
+        new DestructiveActionGateOptions
+        {
+            RequestThresholds = new NoulPolicyThresholds(
+                policy.NegativeAtOrBelow,
+                policy.PositiveAtOrAbove),
+            RequiredIntent = policy.RequiredIntent,
+            MinimumIntentConfidence = policy.MinimumIntentConfidence
+        }.Validate();
+    }
+
+    private static void ValidateMetamorphicRelations(EvaluationSuiteDefinition suite)
+    {
+        var caseIds = suite.Cases.Select(testCase => testCase.Id).ToHashSet(StringComparer.Ordinal);
+        foreach (var relation in suite.MetamorphicRelations)
+        {
+            if (string.IsNullOrWhiteSpace(relation.Id) ||
+                !caseIds.Contains(relation.BaselineCaseId) ||
+                relation.VariantCaseIds.Count == 0 ||
+                relation.VariantCaseIds.Any(variantCaseId => !caseIds.Contains(variantCaseId)))
+            {
+                throw new InvalidOperationException(
+                    $"Metamorphic relation '{relation.Id}' references missing or empty case definitions.");
+            }
+
+            if (!suite.Contract.Questions.TryGetValue(relation.QuestionId, out var question) ||
+                question is not NoulQuestion)
+            {
+                throw new InvalidOperationException(
+                    $"Metamorphic relation '{relation.Id}' requires a Noul question.");
+            }
+
+            if (relation.MaximumMeanDelta is < 0 or > 1)
+            {
+                throw new InvalidOperationException(
+                    $"Metamorphic relation '{relation.Id}' maximum mean delta must be between 0 and 1.");
+            }
         }
     }
 
@@ -248,6 +369,32 @@ internal static class Program
             Console.WriteLine($"{group.Key}: n={values.Length}, mean={mean:F4}, min={values.Min():F4}, max={values.Max():F4}, sd={standardDeviation:F4}");
         }
     }
+
+    private static void PrintEvaluationReport(EvaluationReport report)
+    {
+        Console.WriteLine("\npolicy and stability summary");
+        foreach (var caseReport in report.Cases)
+        {
+            var dispositions = string.Join(
+                ", ",
+                caseReport.ActionDispositionCounts.Select(pair => $"{pair.Key}={pair.Value}"));
+            Console.WriteLine(
+                $"{caseReport.CaseId}: actions=[{dispositions}], " +
+                $"decisionFlip={caseReport.DecisionFlipDetected}, " +
+                $"choiceFlip={caseReport.PrimaryChoiceFlipDetected}");
+        }
+
+        Console.WriteLine("\nmetamorphic comparisons");
+        foreach (var comparison in report.MetamorphicComparisons)
+        {
+            Console.WriteLine(
+                $"{comparison.RelationId}: {comparison.BaselineCaseId} -> {comparison.VariantCaseId}, " +
+                $"delta={comparison.AbsoluteMeanDelta:F4}, " +
+                $"decisionFlip={comparison.DecisionFlipDetected}, " +
+                $"choiceFlip={comparison.PrimaryChoiceFlipDetected}, " +
+                $"{(comparison.Passed ? "PASS" : "CHECK")}");
+        }
+    }
 }
 
 internal sealed record EvaluationSuiteDefinition
@@ -255,7 +402,32 @@ internal sealed record EvaluationSuiteDefinition
     public required string Id { get; init; }
     public string? Description { get; init; }
     public required DecisionContract Contract { get; init; }
+    public ActionPolicyDefinition? ActionPolicy { get; init; }
     public required IReadOnlyList<EvaluationCaseDefinition> Cases { get; init; }
+    public IReadOnlyList<MetamorphicRelationDefinition> MetamorphicRelations { get; init; } =
+        [];
+}
+
+internal sealed record ActionPolicyDefinition
+{
+    public required string RequestQuestionId { get; init; }
+    public required string IntentQuestionId { get; init; }
+    public required string RequiredIntent { get; init; }
+    public required string MessageStateProperty { get; init; }
+    public double NegativeAtOrBelow { get; init; } = 0.25;
+    public double PositiveAtOrAbove { get; init; } = 0.75;
+    public double MinimumIntentConfidence { get; init; } = 0.8;
+}
+
+internal sealed record MetamorphicRelationDefinition
+{
+    public required string Id { get; init; }
+    public required string BaselineCaseId { get; init; }
+    public required IReadOnlyList<string> VariantCaseIds { get; init; }
+    public string QuestionId { get; init; } = "block_card_requested";
+    public double MaximumMeanDelta { get; init; } = 0.05;
+    public bool RequireSameDecisionBand { get; init; } = true;
+    public bool RequireSamePrimaryChoice { get; init; } = true;
 }
 
 internal sealed record EvaluationCaseDefinition
@@ -288,18 +460,20 @@ internal sealed record EvaluationRunRecord
     public required string ContractVersion { get; init; }
     public required string ExpectedBehavior { get; init; }
     public DecisionEvaluationResponse? Response { get; init; }
+    public DestructiveActionDecision? ActionDecision { get; init; }
     public required bool Passed { get; init; }
     public required IReadOnlyList<string> ExpectationFailures { get; init; }
     public string? Error { get; init; }
     public required double DurationMilliseconds { get; init; }
 }
 
-internal sealed record RunnerOptions(string DatasetPath, string OutputPath, bool DryRun)
+internal sealed record RunnerOptions(string DatasetPath, string OutputPath, string ReportPath, bool DryRun)
 {
     public static RunnerOptions Parse(string[] args)
     {
         var dataset = "evals/datasets/payment-card-block-negation-v1.json";
         var output = $"artifacts/results/payment-card-block-negation-{DateTimeOffset.UtcNow:yyyyMMdd-HHmmss}.jsonl";
+        string? report = null;
         var dryRun = false;
 
         for (var index = 0; index < args.Length; index++)
@@ -312,6 +486,9 @@ internal sealed record RunnerOptions(string DatasetPath, string OutputPath, bool
                 case "--output" when index + 1 < args.Length:
                     output = args[++index];
                     break;
+                case "--report" when index + 1 < args.Length:
+                    report = args[++index];
+                    break;
                 case "--dry-run":
                     dryRun = true;
                     break;
@@ -320,6 +497,10 @@ internal sealed record RunnerOptions(string DatasetPath, string OutputPath, bool
             }
         }
 
-        return new RunnerOptions(dataset, output, dryRun);
+        return new RunnerOptions(
+            dataset,
+            output,
+            report ?? Path.ChangeExtension(output, ".report.json"),
+            dryRun);
     }
 }
