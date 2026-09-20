@@ -77,15 +77,14 @@ to proceed if one no longer reproduces — if that fires, stop and work out why.
 
 ## Running against live Jev
 
-Only needed to record a new run:
+Only needed to record a new run. Follow
+[the live configuration section in the README](README.md#optional-running-against-live-jev),
+which is the maintained copy of those instructions — including how to write the
+key without leaving it in your shell history, on both POSIX shells and Windows.
 
-```bash
-mkdir -p .secrets && printf '%s' 'YOUR_KEY' > .secrets/typesafe.key
-```
-
-`.secrets/` is gitignored and the runner reads it before the environment, so a
-benchmark key never has to be exported machine-wide. Never commit a key, never
-paste one into an issue, and do not export one globally for convenience.
+Whatever you do: never commit a key, never paste one into an issue or a pull
+request, never pass one as a command-line argument, and do not export one
+machine-wide for convenience.
 
 ## Licensing of contributions
 

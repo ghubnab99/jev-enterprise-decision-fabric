@@ -26,12 +26,24 @@ The double negation produces positive model evidence but is routed to
 
 ## Run against TypeSafe
 
-Keep the API key outside source control:
+This sample resolves its key from configuration (`DecisionFabric:TypeSafeApiKey`)
+or the `TYPESAFE_API_KEY` environment variable. Keep the key in the gitignored
+`.secrets/typesafe.key` file and hand it to one process only, so it never enters
+your shell history or your machine-wide environment — see
+[live configuration in the root README](../../README.md#optional-running-against-live-jev)
+for how to create that file.
 
 ```bash
-export DecisionFabric__Provider=TypeSafe
-export TYPESAFE_API_KEY="..."
-dotnet run --project samples/DecisionFabric.PaymentDisputes.Api
+DecisionFabric__Provider=TypeSafe \
+  TYPESAFE_API_KEY="$(cat .secrets/typesafe.key)" \
+  dotnet run --project samples/DecisionFabric.PaymentDisputes.Api
+```
+
+```powershell
+$env:DecisionFabric__Provider = "TypeSafe"
+$env:TYPESAFE_API_KEY = (Get-Content -Raw .secrets\typesafe.key).Trim()
+dotnet run --project samples\DecisionFabric.PaymentDisputes.Api
+Remove-Item Env:TYPESAFE_API_KEY
 ```
 
 ## Policy configuration

@@ -85,7 +85,7 @@ must produce. Both legs ran on 2026-09-19 with `--max-repetitions 5`, which is
 | Over-blocks | 1 case | 1 case |
 | Decision changed across repeats | 0 / 33 repeated cases | 0 / 33 |
 | Latency p50 / p95 | 376 ms / 545 ms | 2,479 ms / 4,075 ms |
-| Cost per decision | pricing not publicly available | $0.008648 at list price |
+| Cost per decision, list-price estimate | $0.0000268 | $0.008648 |
 
 **The two denominators rank the legs differently, and that is the point.**
 Per-case accuracy counts each case once, using the disposition most of its runs
@@ -97,8 +97,17 @@ not independent evidence of accuracy.
 
 The legs disagree on only 10 cases with one right and one wrong, and an exact
 McNemar test gives p ≈ 0.75. **This run shows comparable decision quality, not a
-ranking.** Jev was about 6.5× faster at p50. Jev pricing is not publicly
-available, so no cost comparison is made.
+ranking.** Jev was about 6.5× faster at p50, and about 323× cheaper per decision
+at list prices — both figures from this one run.
+
+The cost row is a **post-run estimate**: published list prices applied to the
+token counts recorded in the committed reports, with no discount, batching or
+caching assumed. Jev is $0.042 per million input tokens with output free
+([TypeSafe](https://docs.typesafe.ai/models), checked 2026-09-20); Claude Opus 5
+is $5 per million input and $25 per million output
+([Anthropic](https://platform.claude.com/docs/en/about-claude/pricing), checked
+2026-09-19). Part of the gap is prompt size rather than price: Jev used 637.6
+input tokens per call against Claude's 1,365.7 for the same contract.
 
 The largest single error source for both providers is the gate's own mapping of
 a low "was this requested" probability to `Deny` where the annotation rules want
@@ -192,6 +201,17 @@ so a trailing newline is fine. Keep the file out of screen shares and backups,
 and use `--api-key-file <path>` if you prefer to store it elsewhere. Never pass
 a key as a command-line argument, and do not export `TYPESAFE_API_KEY`
 machine-wide for convenience.
+
+The **samples** resolve their key differently from the runner: they read
+`DecisionFabric:TypeSafeApiKey` from configuration or the `TYPESAFE_API_KEY`
+environment variable. Hand the same file to one process rather than exporting
+it:
+
+```bash
+DecisionFabric__Provider=TypeSafe \
+  TYPESAFE_API_KEY="$(cat .secrets/typesafe.key)" \
+  dotnet run --project samples/DecisionFabric.AgentActionGate.Api
+```
 
 ```bash
 dotnet run --project evals/DecisionFabric.Evals -- \
@@ -299,6 +319,8 @@ The v0.1 datasets, recorded results, contracts and policies are frozen as the
 evidence baseline. Work that would change a number is deliberately deferred:
 
 - multilingual and adversarial risk variants, as a v0.2 dataset;
+- replacing the one real organisation named in a case with a fictional one,
+  which needs a v0.2 dataset and fresh runs rather than an edit;
 - making the gate distinguish "not requested at all" from "requested but
   exceeded" — a policy change that needs its own dataset review;
 - a contract category for consequential-but-reversible actions, or a
