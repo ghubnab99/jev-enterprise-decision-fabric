@@ -8,7 +8,6 @@ using Microsoft.AspNetCore.Mvc.Testing;
 
 namespace DecisionFabric.Tests;
 
-[Collection(SampleApps.Name)]
 public sealed class PaymentDisputeApiTests : IClassFixture<WebApplicationFactory<Program>>
 {
     private static readonly JsonSerializerOptions JsonOptions = new(JsonSerializerDefaults.Web)

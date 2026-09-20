@@ -7,7 +7,6 @@ using InspectorProgram = DecisionFabric.Inspector.Program;
 
 namespace DecisionFabric.Tests;
 
-[Collection(SampleApps.Name)]
 public sealed class InspectorApiTests : IClassFixture<WebApplicationFactory<InspectorProgram>>
 {
     private static readonly JsonSerializerOptions JsonOptions = new(JsonSerializerDefaults.Web);

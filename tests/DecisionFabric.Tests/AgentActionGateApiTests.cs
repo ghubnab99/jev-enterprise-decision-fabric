@@ -11,7 +11,6 @@ using AgentProgram = DecisionFabric.AgentActionGate.Api.Program;
 
 namespace DecisionFabric.Tests;
 
-[Collection(SampleApps.Name)]
 public sealed class AgentActionGateApiTests : IClassFixture<WebApplicationFactory<AgentProgram>>
 {
     private static readonly JsonSerializerOptions JsonOptions = new(JsonSerializerDefaults.Web)
