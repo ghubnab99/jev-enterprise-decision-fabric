@@ -139,8 +139,10 @@ dotnet run --project samples/DecisionFabric.AgentActionGate.Api
 recorded evaluation runs and shows one case at a time in three layers: the raw
 answers a provider gave, the gate reasons those answers triggered, and the
 disposition against the label. It needs no provider key and makes no network
-calls, and it republishes the committed reports rather than recomputing them —
-it refuses to start if the recorded calls stop agreeing with their report.
+calls. The aggregates it displays are republished from the committed reports
+rather than recomputed; the recorded calls are scored independently only to
+verify the two still agree, and a disagreement stops the app starting rather
+than changing a number on the page.
 
 ```bash
 dotnet run --project samples/DecisionFabric.Inspector

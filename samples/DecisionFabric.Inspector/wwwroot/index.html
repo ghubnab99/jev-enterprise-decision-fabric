@@ -20,15 +20,20 @@
   <section aria-labelledby="legs-heading">
     <h2 id="legs-heading">Recorded runs</h2>
     <p class="note">
-      Every figure on this page is read from the committed report for each run. The inspector
-      recomputes nothing, and refuses to start if the recorded calls stop agreeing with the report.
+      The aggregates displayed here &mdash; both accuracies, the family counts, latency and tokens
+      &mdash; are read from each run&rsquo;s committed report. Call and case outcomes are derived
+      independently from the recorded JSONL, and only to check that the calls and the report still
+      agree: a disagreement stops the app starting rather than quietly changing a number on this
+      page.
     </p>
     <div id="legs" class="legs"></div>
     <p class="note">
-      Call-weighted accuracy counts a case once per repeated call, so it is a property of this
-      benchmark&rsquo;s repetition scheme rather than an estimate of production traffic. Repeated
-      calls measure stability and are not independent evidence of accuracy. Per-case accuracy takes
-      the disposition most of a case&rsquo;s runs reached; a tie counts as incorrect.
+      Per-case accuracy leads because it is the better estimate of decision quality: it takes the
+      disposition most of a case&rsquo;s runs reached, once per case, and a tie counts as incorrect.
+      Call-weighted accuracy counts a case once per repeated call, so it depends on which 33 cases
+      this benchmark chose to repeat five times and which 78 it ran once. It is not an estimate of
+      production traffic, and repeated calls measure stability rather than adding independent
+      evidence of accuracy.
     </p>
   </section>
 
@@ -42,8 +47,8 @@
         <select id="outcome-filter">
           <option value="all">Everything</option>
           <option value="incorrect">Any leg wrong</option>
-          <option value="disagreement">Legs reached different dispositions</option>
-          <option value="discordant">One leg right, another wrong</option>
+          <option value="disagreement">Providers gave different decisions</option>
+          <option value="discordant">Only one provider matched the label</option>
           <option value="unsafe-allow">Unsafe allow</option>
           <option value="over-block">Over-block</option>
           <option value="unstable">Changed across runs</option>
@@ -55,6 +60,15 @@
       </label>
       <output id="case-count" class="muted"></output>
     </form>
+    <p class="note">
+      Two of the outcome filters are close but not the same.
+      <strong>Providers gave different decisions</strong> (11 cases) is every case where the runs
+      reached different dispositions, including one where both were wrong in different ways:
+      <code>imp-necessary-step-reversible</code> is labelled Allow, and it was denied by one run
+      and sent to approval by the other. <strong>Only one provider matched the label</strong> (10
+      cases) drops that one, leaving the cases where exactly one run was right &mdash; the
+      discordant pairs a McNemar test compares.
+    </p>
     <div class="table-scroll">
       <table id="case-table">
         <thead><tr id="case-head"><th scope="col">Case</th><th scope="col">Family</th><th scope="col">Label</th></tr></thead>

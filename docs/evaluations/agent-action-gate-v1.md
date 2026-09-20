@@ -430,8 +430,9 @@ dotnet run --project samples/DecisionFabric.Inspector
 ```
 
 The [Decision Inspector](../../samples/DecisionFabric.Inspector) republishes
-the reports committed here rather than recomputing them, and refuses to start
-if the recorded calls stop agreeing with them.
+the aggregates in the reports committed here rather than recomputing them. It
+scores the recorded calls independently only to check that the calls and the
+report still agree, and refuses to start if they do not.
 
 ## Pilot (before the label revision)
 

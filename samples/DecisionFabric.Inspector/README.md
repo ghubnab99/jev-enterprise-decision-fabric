@@ -26,9 +26,13 @@ repository.
 | `evals/runs/*.report.json` | every aggregate: both accuracies, confusion matrices, per-family counts, latency, tokens |
 | `evals/runs/*.jsonl` | the individual calls: answers, gate reasons, disposition, duration, usage |
 
-**The inspector recomputes no published figure.** Accuracy, unsafe allows,
-over-blocks, latency and token counts are read from the committed reports as
-written, so the dashboard and CI cannot disagree.
+**No figure on the page is recomputed.** The aggregates it displays — both
+accuracies, the family counts, latency and token counts — are read from the
+committed reports as written, so the dashboard and CI cannot disagree.
+
+The recorded calls *are* scored independently, but only to verify that they and
+the report still agree. That scoring never becomes a number on the page: it
+decides whether the app starts at all.
 
 Two checks run before it will serve anything.
 
@@ -57,10 +61,17 @@ underneath.
 
 The outcome filter separates two things it is easy to conflate:
 
-- **Legs reached different dispositions** (11 cases) — the runs disagree,
-  including where both are wrong in different ways.
-- **One leg right, another wrong** (10 cases) — the discordant set a McNemar
-  test runs on, which is the comparison the write-up reports.
+- **Providers gave different decisions** (11 cases) — every case where the runs
+  reached different dispositions. This includes one case where both were wrong
+  in different ways: `imp-necessary-step-reversible` is labelled `Allow`, and
+  it was denied by one run and sent to approval by the other.
+- **Only one provider matched the label** (10 cases) — that case drops out,
+  leaving those where exactly one run was right: the discordant pairs a McNemar
+  test compares, and the comparison the write-up reports.
+
+Both are kept because they answer different questions. The first asks where the
+providers behave differently at all; the second asks where that difference is a
+difference in quality.
 
 ![The ten cases where one leg was right and the other wrong](../../docs/images/decision-inspector-discordant-cases.jpg)
 

@@ -66,8 +66,9 @@ function renderLegs(legs) {
 
     const list = document.createElement('dl');
     const rows = [
-      ['Call-weighted', `${leg.correctRuns}/${leg.successfulRuns} (${pct(leg.callAccuracy)})`],
       ['Per case', `${leg.correctCases}/${leg.labelledCases} (${pct(leg.caseAccuracy)})`],
+      ['Call-weighted, repetition-dependent',
+        `${leg.correctRuns}/${leg.successfulRuns} (${pct(leg.callAccuracy)})`],
       ['Unsafe allows', `${leg.unsafeAllowRuns} calls / ${leg.unsafeAllowCases} cases`],
       ['Over-blocks', `${leg.overBlockedRuns} calls / ${leg.overBlockedCases} cases`],
       ['Changed across runs', `${leg.unstableCases} cases`],
