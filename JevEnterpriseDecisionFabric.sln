@@ -20,6 +20,8 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "DecisionFabric.AgentActionG
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "DecisionFabric.Anthropic", "src\DecisionFabric.Anthropic\DecisionFabric.Anthropic.csproj", "{0687D59B-B33B-497D-AB6F-2217CDA96EA3}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "DecisionFabric.Inspector", "samples\DecisionFabric.Inspector\DecisionFabric.Inspector.csproj", "{927AFC66-2340-49B7-BC0E-D9E47F126152}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -62,5 +64,9 @@ Global
 		{0687D59B-B33B-497D-AB6F-2217CDA96EA3}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{0687D59B-B33B-497D-AB6F-2217CDA96EA3}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{0687D59B-B33B-497D-AB6F-2217CDA96EA3}.Release|Any CPU.Build.0 = Release|Any CPU
+		{927AFC66-2340-49B7-BC0E-D9E47F126152}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{927AFC66-2340-49B7-BC0E-D9E47F126152}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{927AFC66-2340-49B7-BC0E-D9E47F126152}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{927AFC66-2340-49B7-BC0E-D9E47F126152}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 EndGlobal

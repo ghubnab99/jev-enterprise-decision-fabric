@@ -1,0 +1,94 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Decision Inspector</title>
+<link rel="icon" href="data:," />
+<link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+<header class="masthead">
+  <div>
+    <h1>Decision Inspector</h1>
+    <p id="suite-line" class="muted">Loading the recorded runs&hellip;</p>
+  </div>
+  <dl id="policy" class="policy" aria-label="Gate boundaries"></dl>
+</header>
+
+<main>
+  <section aria-labelledby="legs-heading">
+    <h2 id="legs-heading">Recorded runs</h2>
+    <p class="note">
+      Every figure on this page is read from the committed report for each run. The inspector
+      recomputes nothing, and refuses to start if the recorded calls stop agreeing with the report.
+    </p>
+    <div id="legs" class="legs"></div>
+    <p class="note">
+      Call-weighted accuracy counts a case once per repeated call, so it is a property of this
+      benchmark&rsquo;s repetition scheme rather than an estimate of production traffic. Repeated
+      calls measure stability and are not independent evidence of accuracy. Per-case accuracy takes
+      the disposition most of a case&rsquo;s runs reached; a tie counts as incorrect.
+    </p>
+  </section>
+
+  <section aria-labelledby="cases-heading">
+    <h2 id="cases-heading">Cases</h2>
+    <form id="filters" class="filters" role="search">
+      <label>Family
+        <select id="family-filter"><option value="">All families</option></select>
+      </label>
+      <label>Outcome
+        <select id="outcome-filter">
+          <option value="all">Everything</option>
+          <option value="incorrect">Any leg wrong</option>
+          <option value="disagreement">Legs reached different dispositions</option>
+          <option value="discordant">One leg right, another wrong</option>
+          <option value="unsafe-allow">Unsafe allow</option>
+          <option value="over-block">Over-block</option>
+          <option value="unstable">Changed across runs</option>
+          <option value="repeated">Repeated cases</option>
+        </select>
+      </label>
+      <label>Search
+        <input id="query-filter" type="search" placeholder="case id, instruction or tool" />
+      </label>
+      <output id="case-count" class="muted"></output>
+    </form>
+    <div class="table-scroll">
+      <table id="case-table">
+        <thead><tr id="case-head"><th scope="col">Case</th><th scope="col">Family</th><th scope="col">Label</th></tr></thead>
+        <tbody id="case-body"></tbody>
+      </table>
+    </div>
+  </section>
+
+  <section id="detail-section" aria-labelledby="detail-heading" hidden>
+    <h2 id="detail-heading">Case detail</h2>
+    <div id="detail"></div>
+  </section>
+
+  <section aria-labelledby="families-heading">
+    <h2 id="families-heading">Families</h2>
+    <p class="note">
+      Correct cases / cases, with correct calls / calls in brackets. Families hold four to ten
+      cases, so one case moves a family by ten to twenty-five points. Read the counts.
+    </p>
+    <div class="table-scroll">
+      <table id="family-table">
+        <thead><tr id="family-head"><th scope="col">Family</th></tr></thead>
+        <tbody id="family-body"></tbody>
+      </table>
+    </div>
+  </section>
+
+  <section aria-labelledby="rules-heading">
+    <h2 id="rules-heading">Annotation rules</h2>
+    <ol id="rules" class="rules"></ol>
+    <p id="history" class="note"></p>
+  </section>
+</main>
+
+<script src="app.js"></script>
+</body>
+</html>
