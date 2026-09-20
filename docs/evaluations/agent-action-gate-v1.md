@@ -21,6 +21,9 @@ committed in `evals/runs/` without calling any provider (see
 - Prompt injection and high-consequence-but-reversible actions remain areas
   requiring deterministic policy controls. Both unsafe allows, and the
   injection case Jev escalated instead of denying, fall there.
+- At published list prices a decision cost an estimated $0.0000268 on Jev and
+  $0.008648 on Claude, about 323×. That is a post-run estimate applied to the
+  recorded token counts, and part of the gap is prompt size rather than price.
 
 ## What the suite measures
 
@@ -28,6 +31,11 @@ committed in `evals/runs/` without calling any provider (see
 labelled with the disposition the gate must produce: 33 `Allow`, 45 `Deny`,
 33 `RequireApproval`. Labels follow the `annotationRules` recorded in the dataset
 itself; `annotationHistory` records the one review they had.
+
+Every case was written for this benchmark. Any company, product, person or
+address in a case is illustrative, implies no affiliation or endorsement, and
+describes no real event, instruction or customer. No personal, customer or
+cardholder data appears in any case.
 
 Families isolate one failure mode each, so a headline number can be decomposed:
 
@@ -117,7 +125,7 @@ still counts against accuracy.
 | Repeated cases whose disposition changed across runs | 0/33 | 0/33 |
 | Metamorphic pairs that changed decision band | 0/13 | 0/13 |
 | Latency p50 / p95 | 376 / 545 ms | 2,479 / 4,075 ms |
-| Cost per decision | pricing not publicly available | $0.008648 |
+| Cost per decision (list-price estimate) | $0.0000268 | $0.008648 |
 
 ### Confusion matrices
 
@@ -356,9 +364,40 @@ call:
   = $0.4423, gives **$2.1015 for the run, $0.008648 per decision**.
 
 **Jev.** TypeSafe reported 154,927 input and 23,260 output tokens for the first
-run (637.6 and 95.7 per call). Jev pricing is not publicly available, so no
-cost is computed and no cost comparison is made. Nothing here shows Jev to be
-cheaper or free.
+run (637.6 and 95.7 per call).
+
+- price: Jev 1.13 list price of **$42 per billion input tokens ($0.042 per
+  million), output tokens free**, from <https://docs.typesafe.ai/models>,
+  checked 2026-09-20;
+- calculation: 154,927 × $0.042 / 1,000,000 = **$0.0065069 for the run,
+  $0.0000268 per decision**. The 23,260 output tokens add nothing at list price.
+
+**This is a post-run estimate, not a billed amount.** It applies published list
+prices to the token counts already recorded in
+`agent-action-gate-jev.report.json`; no invoice was consulted, the run was not
+repeated, and the committed report and raw JSONL are unchanged — they record
+tokens, not money. The earlier version of this document said Jev pricing was not
+publicly available. That was wrong at the time of writing and is corrected here.
+
+### Cost comparison
+
+| | Jev | Claude Opus 5 (low) |
+| --- | ---: | ---: |
+| Input tokens (243 calls) | 154,927 | 331,854 |
+| Output tokens | 23,260 (free at list) | 17,690 |
+| List price, input | $0.042 / Mtok | $5 / Mtok |
+| List price, output | $0 | $25 / Mtok |
+| Run cost | $0.0065069 | $2.1015 |
+| **Per decision** | **$0.0000268** | **$0.008648** |
+
+At list prices and on this run, a Claude decision costs about **323×** a Jev
+decision. Both figures are post-run estimates from published prices with no
+discount, no batching and no caching assumed, and the Claude price was checked
+2026-09-19 against the Jev price on 2026-09-20. Two caveats on reading the
+multiple: Jev also used less than half the input tokens per call (637.6 against
+1,365.7) for the same contract, so the gap is partly price and partly prompt
+size; and cost per decision says nothing about decision quality, which this
+dataset found comparable.
 
 ## Limitations
 
@@ -385,6 +424,11 @@ cheaper or free.
 - **Stability is measured over five repeats in one session.** Zero flips in
   both providers says little about drift across days or model versions.
 - **Latency is one session from one location**, with client-side timing.
+- **Cost is estimated after the fact**, not billed. Published list prices are
+  applied to the token counts in the committed reports, with no discount,
+  batching, caching or minimum charge assumed, and the two prices were checked a
+  day apart. A price change makes the figures stale; the token counts do not
+  change.
 
 ## Reproducing the numbers
 
