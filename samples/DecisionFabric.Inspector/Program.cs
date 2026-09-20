@@ -43,7 +43,12 @@ public partial class Program
                 string? query) =>
             {
                 var filtered = Filter(archive.Cases, family, outcome, query, out var problem);
-                return problem is null ? Results.Ok(filtered) : Results.BadRequest(problem);
+                return problem is null
+                    ? Results.Ok(filtered)
+                    : Results.ValidationProblem(new Dictionary<string, string[]>
+                    {
+                        [nameof(outcome)] = [problem]
+                    });
             })
             .WithName("GetCases");
 

@@ -122,7 +122,7 @@ function renderCases(cases) {
     const row = document.createElement('tr');
     row.tabIndex = 0;
     row.dataset.caseId = item.caseId;
-    if (state.selected === item.caseId) row.setAttribute('aria-selected', 'true');
+    if (state.selected === item.caseId) row.classList.add('selected');
 
     const id = document.createElement('td');
     id.append(text('div', item.caseId, 'mono'));
@@ -305,7 +305,7 @@ function renderDetail(detail) {
 async function select(caseId) {
   state.selected = caseId;
   for (const row of document.querySelectorAll('#case-body tr')) {
-    row.toggleAttribute('aria-selected', row.dataset.caseId === caseId);
+    row.classList.toggle('selected', row.dataset.caseId === caseId);
   }
   renderDetail(await getJson(`/api/cases/${encodeURIComponent(caseId)}`));
 }

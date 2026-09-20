@@ -136,7 +136,7 @@ th, td {
 th { font-size: .78rem; text-transform: uppercase; letter-spacing: .03em; color: var(--muted); }
 tbody tr { cursor: pointer; }
 tbody tr:hover { background: color-mix(in srgb, var(--accent) 8%, transparent); }
-tbody tr[aria-selected="true"] { background: color-mix(in srgb, var(--accent) 14%, transparent); }
+tbody tr.selected { background: color-mix(in srgb, var(--accent) 14%, transparent); }
 
 code, .mono { font-family: ui-monospace, "Cascadia Mono", Consolas, monospace; font-size: .85em; }
 
