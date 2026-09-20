@@ -25,7 +25,13 @@ public sealed record ProposedActionGateOptions
 {
     public required NoulPolicyThresholds RequestThresholds { get; init; }
 
-    /// <summary>The impact choice that may be allowed without any further checks.</summary>
+    /// <summary>
+    /// The impact choice that may be allowed without any further checks. This short
+    /// circuit assumes the caller has already enforced identity, authorization and
+    /// data-access controls on the tool: the gate classifies the action, not the
+    /// entitlement behind it, and an unrequested read of sensitive data can itself
+    /// be consequential.
+    /// </summary>
     public required string ReadOnlyImpact { get; init; }
 
     /// <summary>Impact choices that always require a human, however confident the evidence is.</summary>

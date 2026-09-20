@@ -61,7 +61,10 @@ dotnet run --project samples/DecisionFabric.AgentActionGate.Api
 Thresholds live in `DecisionFabric:Policies:AgentActionGate` and are validated at
 startup. In order:
 
-1. A confidently read-only action is allowed.
+1. A confidently read-only action is allowed. This assumes identity,
+   authorization and data-access controls are enforced before the gate is
+   reached: it classifies the action, not the caller's entitlement to the data,
+   and an unrequested read can be consequential where the data is sensitive.
 2. A user-request probability at or below the negative boundary is denied.
 3. Otherwise approval is required if the request is uncertain, the impact is
    irreversible or external, impact confidence is low, scope expansion exceeds
