@@ -13,6 +13,7 @@ namespace DecisionFabric.Tests;
 /// measured durations) are removed before comparison.
 /// Set UPDATE_SNAPSHOTS=1 to rewrite the snapshot files deliberately.
 /// </summary>
+[Collection(SampleApps.Name)]
 public sealed class PaymentDisputeCharacterizationTests
     : IClassFixture<WebApplicationFactory<Program>>
 {

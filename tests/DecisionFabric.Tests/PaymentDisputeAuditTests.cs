@@ -9,6 +9,7 @@ using Microsoft.Extensions.DependencyInjection;
 
 namespace DecisionFabric.Tests;
 
+[Collection(SampleApps.Name)]
 public sealed class PaymentDisputeAuditTests
 {
     private static readonly JsonSerializerOptions JsonOptions = new(JsonSerializerDefaults.Web)

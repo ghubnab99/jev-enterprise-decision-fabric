@@ -4,6 +4,7 @@ using Microsoft.Extensions.Options;
 
 namespace DecisionFabric.Tests;
 
+[Collection(SampleApps.Name)]
 public sealed class PaymentDisputePolicyConfigurationTests
 {
     private const string Section = PaymentDisputePolicyOptions.SectionName;
