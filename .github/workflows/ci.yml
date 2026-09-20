@@ -23,4 +23,16 @@ jobs:
       - name: Test
         run: dotnet test JevEnterpriseDecisionFabric.sln --configuration Release --no-build
       - name: Validate evaluation datasets
-        run: dotnet run --project evals/DecisionFabric.Evals --configuration Release --no-build -- --dry-run
+        run: |
+          shopt -s nullglob
+          datasets=(evals/datasets/*.json)
+          if [ ${#datasets[@]} -eq 0 ]; then
+            echo "No dataset found under evals/datasets."
+            exit 1
+          fi
+          for dataset in "${datasets[@]}"; do
+            echo "::group::$dataset"
+            dotnet run --project evals/DecisionFabric.Evals --configuration Release --no-build -- \
+              --dataset "$dataset" --dry-run
+            echo "::endgroup::"
+          done

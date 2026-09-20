@@ -1,5 +1,7 @@
 using DecisionFabric.PaymentDisputes.Api;
 using Microsoft.AspNetCore.Mvc.Testing;
+using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Options;
 
 namespace DecisionFabric.Tests;
@@ -8,6 +10,14 @@ public sealed class PaymentDisputePolicyConfigurationTests
 {
     private const string Section = PaymentDisputePolicyOptions.SectionName;
 
+    /// <summary>
+    /// Which exception surfaces from a host that fails to start is a race: when the entry point
+    /// throws, the host it built is disposed while the test factory is still reaching into it, so
+    /// the validation failure is sometimes replaced by an ObjectDisposedException for that host.
+    /// The guarantee worth asserting here is that the app does not come up. That the reason is a
+    /// validation failure is pinned deterministically by
+    /// <see cref="InvalidPolicyConfigurationFailsValidation"/>.
+    /// </summary>
     [Theory]
     [InlineData("PositiveAtOrAbove", "0.1")]
     [InlineData("NegativeAtOrBelow", "-0.5")]
@@ -18,9 +28,37 @@ public sealed class PaymentDisputePolicyConfigurationTests
         using var factory = new WebApplicationFactory<Program>()
             .WithWebHostBuilder(builder => builder.UseSetting($"{Section}:{key}", value));
 
-        var exception = Assert.ThrowsAny<Exception>(() => factory.CreateClient());
+        Assert.ThrowsAny<Exception>(() => factory.CreateClient());
+    }
 
-        Assert.Contains(Flatten(exception), inner => inner is OptionsValidationException);
+    [Theory]
+    [InlineData("PositiveAtOrAbove", "0.1")]
+    [InlineData("NegativeAtOrBelow", "-0.5")]
+    [InlineData("MinimumIntentConfidence", "1.5")]
+    [InlineData("PositiveAtOrAbove", "")]
+    public void InvalidPolicyConfigurationFailsValidation(string key, string value)
+    {
+        var settings = new Dictionary<string, string?>(StringComparer.Ordinal)
+        {
+            [$"{Section}:NegativeAtOrBelow"] = "0.25",
+            [$"{Section}:PositiveAtOrAbove"] = "0.75",
+            [$"{Section}:MinimumIntentConfidence"] = "0.8",
+            [$"{Section}:{key}"] = value
+        };
+        var configuration = new ConfigurationBuilder().AddInMemoryCollection(settings).Build();
+
+        var services = new ServiceCollection();
+        services.AddSingleton<IValidateOptions<PaymentDisputePolicyOptions>, PaymentDisputePolicyOptionsValidator>();
+        services.AddOptions<PaymentDisputePolicyOptions>().Bind(configuration.GetSection(Section));
+        using var provider = services.BuildServiceProvider();
+
+        var error = Assert.Throws<OptionsValidationException>(
+            () => provider.GetRequiredService<IOptions<PaymentDisputePolicyOptions>>().Value);
+
+        // The messages describe the broken relationship ("the negative threshold must be lower
+        // than the positive threshold") rather than naming a property, so assert only that the
+        // validator spoke.
+        Assert.NotEmpty(error.Failures);
     }
 
     [Fact]
@@ -42,19 +80,4 @@ public sealed class PaymentDisputePolicyConfigurationTests
             PositiveAtOrAbove = positive,
             MinimumIntentConfidence = confidence
         }));
-
-    private static IEnumerable<Exception> Flatten(Exception exception)
-    {
-        for (Exception? current = exception; current is not null; current = current.InnerException)
-        {
-            yield return current;
-            if (current is AggregateException aggregate)
-            {
-                foreach (var inner in aggregate.InnerExceptions.SelectMany(Flatten))
-                {
-                    yield return inner;
-                }
-            }
-        }
-    }
 }

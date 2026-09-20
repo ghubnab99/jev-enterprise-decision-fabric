@@ -52,6 +52,7 @@ evals/
 samples/
   DecisionFabric.PaymentDisputes.Api/  end-to-end payment dispute decision API
   DecisionFabric.AgentActionGate.Api/  agent tool-call authorization API
+  DecisionFabric.Inspector/            dashboard over recorded evaluation runs
 tests/
   DecisionFabric.Tests/      contract, fabric, policy, snapshot and HTTP tests
 ```
@@ -131,6 +132,23 @@ hosting registration and fixture provider. Its fixtures are synthetic.
 ```bash
 dotnet run --project samples/DecisionFabric.AgentActionGate.Api
 ```
+
+## Decision Inspector
+
+[`DecisionFabric.Inspector`](samples/DecisionFabric.Inspector) reads the
+recorded evaluation runs and shows one case at a time in three layers: the raw
+answers a provider gave, the gate reasons those answers triggered, and the
+disposition against the label. It needs no provider key and makes no network
+calls. The aggregates it displays are republished from the committed reports
+rather than recomputed; the recorded calls are scored independently only to
+verify the two still agree, and a disagreement stops the app starting rather
+than changing a number on the page.
+
+```bash
+dotnet run --project samples/DecisionFabric.Inspector
+```
+
+![Decision Inspector showing the ten cases where one run was right and the other wrong](docs/images/decision-inspector-discordant-cases.jpg)
 
 ## Run locally
 
