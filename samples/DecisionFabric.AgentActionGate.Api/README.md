@@ -52,10 +52,16 @@ Jev got wrong, including an unsafe allow on `irr-req-revoke-access`, are in
 
 This sample resolves its key from configuration (`DecisionFabric:TypeSafeApiKey`)
 or the `TYPESAFE_API_KEY` environment variable. Keep the key in the gitignored
-`.secrets/typesafe.key` file and hand it to one process only, so it never enters
-your shell history or your machine-wide environment — see
+`.secrets/typesafe.key` file rather than in a persistent user- or
+machine-scoped environment variable — see
 [live configuration in the root README](../../README.md#optional-running-against-live-jev)
 for how to create that file.
+
+The Bash form supplies the key only to the launched process, and the key itself
+is never typed into shell history. PowerShell has no inline assignment, so the
+second form sets the variable in the current PowerShell process and removes it
+afterwards; `try`/`finally` makes sure that happens even when `dotnet run`
+fails. Until then it is visible to anything else started from that session.
 
 ```bash
 DecisionFabric__Provider=TypeSafe \
@@ -66,8 +72,12 @@ DecisionFabric__Provider=TypeSafe \
 ```powershell
 $env:DecisionFabric__Provider = "TypeSafe"
 $env:TYPESAFE_API_KEY = (Get-Content -Raw .secrets\typesafe.key).Trim()
-dotnet run --project samples\DecisionFabric.AgentActionGate.Api
-Remove-Item Env:TYPESAFE_API_KEY
+try {
+    dotnet run --project samples\DecisionFabric.AgentActionGate.Api
+}
+finally {
+    Remove-Item Env:TYPESAFE_API_KEY -ErrorAction SilentlyContinue
+}
 ```
 
 ## Policy

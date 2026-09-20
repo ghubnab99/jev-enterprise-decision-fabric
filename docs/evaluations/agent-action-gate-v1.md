@@ -463,8 +463,8 @@ dotnet run --project evals/DecisionFabric.Evals -- compare \
 ```
 
 Keys are read from `.secrets/typesafe.key` and `.secrets/anthropic.key`
-(gitignored) before the environment, so a benchmark key never has to be
-exported machine-wide.
+(gitignored) before the environment, so a benchmark key never has to be set as
+a persistent user- or machine-scoped environment variable.
 
 To read the same runs case by case rather than in aggregate, including the
 three layers for every recorded call:

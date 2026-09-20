@@ -83,8 +83,10 @@ which is the maintained copy of those instructions — including how to write th
 key without leaving it in your shell history, on both POSIX shells and Windows.
 
 Whatever you do: never commit a key, never paste one into an issue or a pull
-request, never pass one as a command-line argument, and do not export one
-machine-wide for convenience.
+request, never pass one as a command-line argument, and do not set one as a
+persistent user- or machine-scoped environment variable for convenience. An
+`export` is narrower — the current shell environment and its child processes —
+but the key file avoids both.
 
 ## Licensing of contributions
 

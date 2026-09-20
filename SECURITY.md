@@ -60,8 +60,12 @@ and which commit you tested. An acknowledgement should arrive within a week.
 
 - Provider keys belong in `.secrets/` (gitignored) or in a CI secret, never in
   source, configuration, tests or recorded artifacts.
-- Do not export a benchmark key machine-wide. The runner reads the key file
-  before the environment so that it does not have to be.
+- Do not set a benchmark key as a persistent user- or machine-scoped
+  environment variable: every process started afterwards inherits it, including
+  tools that resolve credentials from the environment on their own. An
+  `export` is narrower but still reaches the current shell environment and its
+  child processes. The runner reads the key file before the environment so
+  neither is necessary.
 - Every committed evaluation case is synthetic. Do not add real customer
   language, personal data or cardholder data to a dataset, a fixture or an
   issue.
