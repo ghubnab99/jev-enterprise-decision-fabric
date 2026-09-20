@@ -51,11 +51,11 @@ internal static class Providers
         ClaudePricing.GetValueOrDefault(model);
 
     /// <summary>
-    /// Finds a provider's key without requiring a global environment variable.
-    /// Claude Code resolves its own credentials from ANTHROPIC_API_KEY ahead of a
-    /// subscription login, so exporting that name machine-wide silently bills the
-    /// editor to the API. The key file is checked first so this tool can hold a
-    /// key the rest of the machine never sees.
+    /// Finds a provider key without requiring a persistent environment variable.
+    /// Claude Code checks ANTHROPIC_API_KEY before subscription credentials, so a
+    /// persistent user- or machine-scoped value can make the editor use API billing
+    /// unintentionally. Checking the key file first keeps this runner independent
+    /// of that persistent environment setting.
     /// </summary>
     private static string ResolveApiKey(string provider, string environmentVariable, string? explicitPath)
     {
