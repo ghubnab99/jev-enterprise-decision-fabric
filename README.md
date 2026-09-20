@@ -178,8 +178,9 @@ The payment dispute sample runs the same way:
 
 Live runs need a TypeSafe API key and spend credits. The runner reads
 `.secrets/typesafe.key` (gitignored) before the environment, so a benchmark key
-never has to be exported machine-wide — which also keeps it out of the process
-list and away from tools that resolve credentials from the environment.
+never has to be set as a persistent user- or machine-scoped environment
+variable — which keeps it away from every other process that resolves
+credentials from the environment.
 
 Write the key into that file without putting it in your shell history. On
 macOS, Linux or Git Bash, `read -s` keeps the value off the command line:
@@ -198,20 +199,31 @@ Read-Host -Prompt 'TypeSafe API key' | Set-Content -NoNewline -Encoding ascii .s
 
 Creating the file in an editor works just as well; the runner trims whitespace,
 so a trailing newline is fine. Keep the file out of screen shares and backups,
-and use `--api-key-file <path>` if you prefer to store it elsewhere. Never pass
-a key as a command-line argument, and do not export `TYPESAFE_API_KEY`
-machine-wide for convenience.
+and use `--api-key-file <path>` if you prefer to store it elsewhere.
+
+Two habits worth keeping. Never pass a key as a command-line argument: it lands
+in shell history and is visible in the process list to anything that can read
+it. And do not set `TYPESAFE_API_KEY` as a persistent user- or machine-scoped
+environment variable for convenience — that is the setting that quietly hands
+the key to every process you start afterwards, including tools that resolve
+credentials from the environment on their own.
 
 The **samples** resolve their key differently from the runner: they read
 `DecisionFabric:TypeSafeApiKey` from configuration or the `TYPESAFE_API_KEY`
-environment variable. Hand the same file to one process rather than exporting
-it:
+environment variable. Pass the file's contents on the command that launches
+one, rather than exporting it into your shell:
 
 ```bash
 DecisionFabric__Provider=TypeSafe \
   TYPESAFE_API_KEY="$(cat .secrets/typesafe.key)" \
   dotnet run --project samples/DecisionFabric.AgentActionGate.Api
 ```
+
+A Bash inline assignment like this supplies the variable only to the launched
+process, and the key itself is never typed into shell history — only the
+`cat` that reads it is. An `export` would instead place the key in the current
+shell environment and hand it to every child process started from that shell
+until it exits.
 
 ```bash
 dotnet run --project evals/DecisionFabric.Evals -- \
