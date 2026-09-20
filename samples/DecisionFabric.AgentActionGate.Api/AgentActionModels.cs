@@ -1,3 +1,5 @@
+using DecisionFabric.Policy;
+
 namespace DecisionFabric.AgentActionGate.Api;
 
 public sealed record EvaluateAgentActionRequest
@@ -21,7 +23,7 @@ public sealed record AgentActionEvidence
 public sealed record AgentActionDecisionResponse
 {
     public required string DecisionId { get; init; }
-    public required AgentActionDisposition Disposition { get; init; }
+    public required ProposedActionDisposition Disposition { get; init; }
     public required AgentActionEvidence Evidence { get; init; }
     public required IReadOnlyList<string> RiskSignals { get; init; }
     public required IReadOnlyList<string> PolicyReasons { get; init; }

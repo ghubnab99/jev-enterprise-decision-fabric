@@ -7,5 +7,6 @@
     <ProjectReference Include="..\..\src\DecisionFabric.Core\DecisionFabric.Core.csproj" />
     <ProjectReference Include="..\..\src\DecisionFabric.Policy\DecisionFabric.Policy.csproj" />
     <ProjectReference Include="..\..\src\DecisionFabric.TypeSafe\DecisionFabric.TypeSafe.csproj" />
+    <ProjectReference Include="..\..\src\DecisionFabric.Anthropic\DecisionFabric.Anthropic.csproj" />
   </ItemGroup>
 </Project>

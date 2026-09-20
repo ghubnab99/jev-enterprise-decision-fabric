@@ -83,6 +83,7 @@ public sealed class EvaluationReportBuilderTests
                     Id = "meaning-preserving-variant",
                     BaselineCaseId = "baseline",
                     VariantCaseIds = ["variant"],
+                    QuestionId = "block_card_requested",
                     MaximumMeanDelta = 0.05
                 }
             ]

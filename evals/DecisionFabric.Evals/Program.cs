@@ -1,38 +1,40 @@
 using System.Diagnostics.CodeAnalysis;
+using System.Globalization;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 using DecisionFabric.Core;
-using DecisionFabric.Policy;
 using DecisionFabric.TypeSafe;
 
 namespace DecisionFabric.Evals;
 
 internal static class Program
 {
-    private static readonly JsonSerializerOptions JsonOptions = new(JsonSerializerDefaults.Web)
-    {
-        WriteIndented = false,
-        DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull,
-        Converters = { new JsonStringEnumConverter(JsonNamingPolicy.CamelCase) }
-    };
-
-    private static readonly JsonSerializerOptions ReportJsonOptions = new(JsonOptions)
-    {
-        WriteIndented = true
-    };
-
     public static async Task<int> Main(string[] args)
     {
         try
         {
+            if (args.Length > 0 && args[0] == "compare")
+            {
+                return await RunComparisonAsync(args[1..]);
+            }
+
+            if (args.Length > 0 && args[0] == "rebuild-report")
+            {
+                return await ReportRebuilder.RunAsync(args[1..]);
+            }
+
             var options = RunnerOptions.Parse(args);
-            var suite = await LoadSuiteAsync(options.DatasetPath);
-            Validate(suite);
+            var suite = ApplyRepetitionCap(
+                await EvaluationIo.LoadSuiteAsync(options.DatasetPath),
+                options.MaximumRepetitions);
+            EvaluationSuiteValidator.Validate(suite);
 
             var plannedCalls = suite.Cases.Sum(testCase => testCase.Repetitions);
+            var labelledCases = suite.Cases.Count(testCase => testCase.ExpectedDisposition is not null);
             Console.WriteLine($"Suite: {suite.Id}");
             Console.WriteLine($"Contract: {suite.Contract.Id}@{suite.Contract.Version}");
             Console.WriteLine($"Cases: {suite.Cases.Count}; API calls: {plannedCalls}; questions/call: {suite.Contract.Questions.Count}");
+            Console.WriteLine($"Disposition-labelled cases: {labelledCases}/{suite.Cases.Count}");
 
             if (options.DryRun)
             {
@@ -40,52 +42,22 @@ internal static class Program
                 return 0;
             }
 
-            var apiKey = Environment.GetEnvironmentVariable("TYPESAFE_API_KEY");
-            if (string.IsNullOrWhiteSpace(apiKey))
-            {
-                throw new InvalidOperationException("Set TYPESAFE_API_KEY before running live evaluations.");
-            }
-
             var outputPath = Path.GetFullPath(options.OutputPath);
             Directory.CreateDirectory(Path.GetDirectoryName(outputPath)!);
 
-            using var httpClient = new HttpClient();
-            var provider = new TypeSafeDecisionProvider(httpClient, apiKey);
-            var allRuns = new List<EvaluationRunRecord>();
-            var successfulRuns = new List<EvaluationRunRecord>();
-            var failedCallCount = 0;
+            var selection = Providers.Create(options);
+            using var lifetime = selection.Lifetime;
+            Console.WriteLine($"Provider: {selection.Label} ({selection.Model})");
 
-            await using var writer = new StreamWriter(outputPath, append: false);
-            foreach (var testCase in suite.Cases)
-            {
-                for (var run = 1; run <= testCase.Repetitions; run++)
-                {
-                    var record = await ExecuteAsync(suite, testCase, run, provider);
-                    await writer.WriteLineAsync(JsonSerializer.Serialize(record, JsonOptions));
-                    await writer.FlushAsync();
-                    allRuns.Add(record);
-
-                    if (record.Response is not null)
-                    {
-                        successfulRuns.Add(record);
-                    }
-                    else
-                    {
-                        failedCallCount++;
-                    }
-
-                    Console.WriteLine($"{testCase.Id} [{run}/{testCase.Repetitions}]: {(record.Passed ? "PASS" : "CHECK")}, {record.DurationMilliseconds:F0} ms");
-                }
-            }
-
-            PrintNoulSummary(successfulRuns);
-            var report = EvaluationReportBuilder.Build(suite, allRuns);
+            var allRuns = await RunSuiteAsync(suite, selection, options, outputPath);
+            var failedCallCount = allRuns.Count(record => record.Response is null);
+            var report = EvaluationReportBuilder.Build(suite, allRuns, selection.Provenance);
             var reportPath = Path.GetFullPath(options.ReportPath);
             Directory.CreateDirectory(Path.GetDirectoryName(reportPath)!);
             await File.WriteAllTextAsync(
                 reportPath,
-                JsonSerializer.Serialize(report, ReportJsonOptions));
-            PrintEvaluationReport(report);
+                JsonSerializer.Serialize(report, EvaluationIo.ReportJsonOptions));
+            EvaluationConsole.PrintReport(report);
             Console.WriteLine($"Raw JSONL: {outputPath}");
             Console.WriteLine($"Evaluation report: {reportPath}");
             if (failedCallCount > 0)
@@ -103,42 +75,104 @@ internal static class Program
         }
     }
 
-    private static async Task<EvaluationSuiteDefinition> LoadSuiteAsync(string path)
+    private static async Task<int> RunComparisonAsync(string[] args)
     {
-        await using var stream = File.OpenRead(path);
-        return await JsonSerializer.DeserializeAsync<EvaluationSuiteDefinition>(stream, JsonOptions)
-            ?? throw new JsonException($"Could not deserialize evaluation suite '{path}'.");
-    }
+        var reports = new List<string>();
+        string? output = null;
 
-    private static void Validate(EvaluationSuiteDefinition suite)
-    {
-        if (string.IsNullOrWhiteSpace(suite.Id) || suite.Contract.Questions.Count == 0 || suite.Cases.Count == 0)
+        for (var index = 0; index < args.Length; index++)
         {
-            throw new InvalidOperationException("A suite requires an id, at least one question, and at least one case.");
-        }
-
-        var duplicate = suite.Cases.GroupBy(testCase => testCase.Id).FirstOrDefault(group => group.Count() > 1);
-        if (duplicate is not null)
-        {
-            throw new InvalidOperationException($"Duplicate case id '{duplicate.Key}'.");
-        }
-
-        if (suite.Cases.Any(testCase => testCase.Repetitions is < 1 or > 100))
-        {
-            throw new InvalidOperationException("Case repetitions must be between 1 and 100.");
-        }
-
-        foreach (var expectedQuestion in suite.Cases.SelectMany(testCase => testCase.Expectations.Keys).Distinct())
-        {
-            if (!suite.Contract.Questions.ContainsKey(expectedQuestion))
+            switch (args[index])
             {
-                throw new InvalidOperationException($"Expectation references unknown question '{expectedQuestion}'.");
+                case "--output" when index + 1 < args.Length:
+                    output = args[++index];
+                    break;
+                default:
+                    reports.Add(args[index]);
+                    break;
             }
         }
 
-        ValidateActionPolicy(suite);
-        ValidateMetamorphicRelations(suite);
+        return await BenchmarkComparisonBuilder.RunAsync(reports, output);
     }
+
+    /// <summary>
+    /// Runs every planned call, writing each record to the JSONL as it lands so a
+    /// long run can be inspected or resumed from partial output. Concurrency is
+    /// bounded because latency percentiles are part of the result: overlapping
+    /// requests beyond what the provider serves in parallel would inflate them.
+    /// </summary>
+    private static async Task<List<EvaluationRunRecord>> RunSuiteAsync(
+        EvaluationSuiteDefinition suite,
+        ProviderSelection selection,
+        RunnerOptions options,
+        string outputPath)
+    {
+        var planned = suite.Cases
+            .SelectMany(testCase => Enumerable
+                .Range(1, testCase.Repetitions)
+                .Select(run => (TestCase: testCase, Run: run)))
+            .ToArray();
+        var records = new EvaluationRunRecord[planned.Length];
+        var completed = 0;
+
+        await using var writer = new StreamWriter(outputPath, append: false);
+        using var gate = new SemaphoreSlim(options.Concurrency);
+        var writeLock = new SemaphoreSlim(1);
+
+        await Task.WhenAll(planned.Select(async (item, index) =>
+        {
+            await gate.WaitAsync();
+            try
+            {
+                var record = await ExecuteAsync(suite, item.TestCase, item.Run, selection.Provider);
+                records[index] = record;
+
+                await writeLock.WaitAsync();
+                try
+                {
+                    await writer.WriteLineAsync(JsonSerializer.Serialize(record, EvaluationIo.JsonOptions));
+                    await writer.FlushAsync();
+                    var done = ++completed;
+                    Console.WriteLine(
+                        $"[{done}/{planned.Length}] {record.CaseId} [{record.Run}]: " +
+                        $"{(record.Passed ? "PASS" : "CHECK")}, " +
+                        $"{record.ActionDecision?.Disposition ?? "-"}, {record.DurationMilliseconds:F0} ms" +
+                        $"{(record.Error is null ? string.Empty : " ERROR")}");
+                }
+                finally
+                {
+                    writeLock.Release();
+                }
+            }
+            finally
+            {
+                gate.Release();
+            }
+        }));
+
+        return [.. records];
+    }
+
+    /// <summary>
+    /// Trims each case's repetitions so a comparison run can be priced down without
+    /// editing the dataset. Cases keep their relative depth: a 10-repetition
+    /// stability case still outweighs a single-run breadth case.
+    /// </summary>
+    internal static EvaluationSuiteDefinition ApplyRepetitionCap(
+        EvaluationSuiteDefinition suite,
+        int? maximumRepetitions) =>
+        maximumRepetitions is not { } maximum
+            ? suite
+            : suite with
+            {
+                Cases = suite.Cases
+                    .Select(testCase => testCase with
+                    {
+                        Repetitions = Math.Min(testCase.Repetitions, maximum)
+                    })
+                    .ToArray()
+            };
 
     [SuppressMessage(
         "Performance",
@@ -158,144 +192,203 @@ internal static class Program
                 State = testCase.State,
                 Contract = suite.Contract
             });
-            var failures = EvaluateExpectations(testCase.Expectations, response.Answers);
-            var actionDecision = EvaluateActionPolicy(suite.ActionPolicy, testCase.State, response.Answers);
-
-            return new EvaluationRunRecord
-            {
-                SuiteId = suite.Id,
-                CaseId = testCase.Id,
-                Family = testCase.Family,
-                Run = run,
-                StartedAt = startedAt,
-                ContractId = suite.Contract.Id,
-                ContractVersion = suite.Contract.Version,
-                ExpectedBehavior = testCase.ExpectedBehavior,
-                Response = response,
-                ActionDecision = actionDecision,
-                Passed = failures.Count == 0,
-                ExpectationFailures = failures,
-                DurationMilliseconds = response.Duration.TotalMilliseconds
-            };
+            return EvaluationRunRecord.FromResponse(suite, testCase, run, startedAt, response);
         }
         catch (Exception exception)
         {
-            return new EvaluationRunRecord
-            {
-                SuiteId = suite.Id,
-                CaseId = testCase.Id,
-                Family = testCase.Family,
-                Run = run,
-                StartedAt = startedAt,
-                ContractId = suite.Contract.Id,
-                ContractVersion = suite.Contract.Version,
-                ExpectedBehavior = testCase.ExpectedBehavior,
-                Passed = false,
-                ExpectationFailures = [],
-                Error = exception.ToString(),
-                DurationMilliseconds = (DateTimeOffset.UtcNow - startedAt).TotalMilliseconds
-            };
+            return EvaluationRunRecord.FromFailure(suite, testCase, run, startedAt, exception);
         }
     }
+}
 
-    private static DestructiveActionDecision? EvaluateActionPolicy(
-        ActionPolicyDefinition? policy,
-        JsonElement state,
-        IReadOnlyDictionary<string, DecisionAnswer> answers)
+internal sealed record RunnerOptions(
+    string DatasetPath,
+    string OutputPath,
+    string ReportPath,
+    bool DryRun,
+    int? MaximumRepetitions,
+    string Provider,
+    string? Model,
+    string? Effort,
+    ProviderPricing? Pricing,
+    int Concurrency,
+    string? ApiKeyFile)
+{
+    public static RunnerOptions Parse(string[] args)
     {
-        if (policy is null)
+        var dataset = "evals/datasets/payment-card-block-negation-v1.json";
+        string? output = null;
+        string? report = null;
+        var dryRun = false;
+        int? maximumRepetitions = null;
+        var provider = Providers.Jev;
+        string? model = null;
+        string? effort = null;
+        double? inputPrice = null;
+        double? outputPrice = null;
+        var concurrency = 1;
+        string? apiKeyFile = null;
+
+        for (var index = 0; index < args.Length; index++)
         {
-            return null;
-        }
-
-        var message = state.GetProperty(policy.MessageStateProperty).GetString() ?? string.Empty;
-        var actionRequested = (NoulAnswer)answers[policy.RequestQuestionId];
-        var primaryIntent = (ChoiceAnswer)answers[policy.IntentQuestionId];
-
-        return DestructiveActionGate.Evaluate(
-            new DestructiveActionEvidence
+            switch (args[index])
             {
-                ActionRequested = actionRequested,
-                PrimaryIntent = primaryIntent,
-                LinguisticRiskSignals = LinguisticRiskDetector.Detect(message)
-            },
-            new DestructiveActionGateOptions
-            {
-                RequestThresholds = new NoulPolicyThresholds(
-                    policy.NegativeAtOrBelow,
-                    policy.PositiveAtOrAbove),
-                RequiredIntent = policy.RequiredIntent,
-                MinimumIntentConfidence = policy.MinimumIntentConfidence
-            });
-    }
-
-    private static void ValidateActionPolicy(EvaluationSuiteDefinition suite)
-    {
-        if (suite.ActionPolicy is not { } policy)
-        {
-            return;
-        }
-
-        if (!suite.Contract.Questions.TryGetValue(policy.RequestQuestionId, out var requestQuestion) ||
-            requestQuestion is not NoulQuestion)
-        {
-            throw new InvalidOperationException(
-                $"Action policy request question '{policy.RequestQuestionId}' must be a Noul question.");
-        }
-
-        if (!suite.Contract.Questions.TryGetValue(policy.IntentQuestionId, out var intentQuestion) ||
-            intentQuestion is not ChoiceQuestion)
-        {
-            throw new InvalidOperationException(
-                $"Action policy intent question '{policy.IntentQuestionId}' must be a Choice question.");
-        }
-
-        if (suite.Cases.Any(testCase =>
-                !testCase.State.TryGetProperty(policy.MessageStateProperty, out var message) ||
-                message.ValueKind != JsonValueKind.String))
-        {
-            throw new InvalidOperationException(
-                $"Every action-policy case requires string state property '{policy.MessageStateProperty}'.");
-        }
-
-        new DestructiveActionGateOptions
-        {
-            RequestThresholds = new NoulPolicyThresholds(
-                policy.NegativeAtOrBelow,
-                policy.PositiveAtOrAbove),
-            RequiredIntent = policy.RequiredIntent,
-            MinimumIntentConfidence = policy.MinimumIntentConfidence
-        }.Validate();
-    }
-
-    private static void ValidateMetamorphicRelations(EvaluationSuiteDefinition suite)
-    {
-        var caseIds = suite.Cases.Select(testCase => testCase.Id).ToHashSet(StringComparer.Ordinal);
-        foreach (var relation in suite.MetamorphicRelations)
-        {
-            if (string.IsNullOrWhiteSpace(relation.Id) ||
-                !caseIds.Contains(relation.BaselineCaseId) ||
-                relation.VariantCaseIds.Count == 0 ||
-                relation.VariantCaseIds.Any(variantCaseId => !caseIds.Contains(variantCaseId)))
-            {
-                throw new InvalidOperationException(
-                    $"Metamorphic relation '{relation.Id}' references missing or empty case definitions.");
-            }
-
-            if (!suite.Contract.Questions.TryGetValue(relation.QuestionId, out var question) ||
-                question is not NoulQuestion)
-            {
-                throw new InvalidOperationException(
-                    $"Metamorphic relation '{relation.Id}' requires a Noul question.");
-            }
-
-            if (relation.MaximumMeanDelta is < 0 or > 1)
-            {
-                throw new InvalidOperationException(
-                    $"Metamorphic relation '{relation.Id}' maximum mean delta must be between 0 and 1.");
+                case "--dataset" when index + 1 < args.Length:
+                    dataset = args[++index];
+                    break;
+                case "--output" when index + 1 < args.Length:
+                    output = args[++index];
+                    break;
+                case "--report" when index + 1 < args.Length:
+                    report = args[++index];
+                    break;
+                case "--max-repetitions" when index + 1 < args.Length:
+                    maximumRepetitions = int.Parse(args[++index], CultureInfo.InvariantCulture);
+                    break;
+                case "--provider" when index + 1 < args.Length:
+                    provider = args[++index];
+                    break;
+                case "--model" when index + 1 < args.Length:
+                    model = args[++index];
+                    break;
+                case "--effort" when index + 1 < args.Length:
+                    effort = args[++index];
+                    break;
+                case "--input-price" when index + 1 < args.Length:
+                    inputPrice = double.Parse(args[++index], CultureInfo.InvariantCulture);
+                    break;
+                case "--output-price" when index + 1 < args.Length:
+                    outputPrice = double.Parse(args[++index], CultureInfo.InvariantCulture);
+                    break;
+                case "--concurrency" when index + 1 < args.Length:
+                    concurrency = int.Parse(args[++index], CultureInfo.InvariantCulture);
+                    break;
+                case "--api-key-file" when index + 1 < args.Length:
+                    apiKeyFile = args[++index];
+                    break;
+                case "--dry-run":
+                    dryRun = true;
+                    break;
+                default:
+                    throw new ArgumentException($"Unknown or incomplete argument '{args[index]}'.");
             }
         }
+
+        output ??= $"artifacts/results/{Path.GetFileNameWithoutExtension(dataset)}-{provider}-" +
+            $"{DateTimeOffset.UtcNow:yyyyMMdd-HHmmss}.jsonl";
+
+        if (maximumRepetitions is < 1)
+        {
+            throw new ArgumentException("--max-repetitions must be at least 1.");
+        }
+
+        if (concurrency is < 1 or > 16)
+        {
+            throw new ArgumentException("--concurrency must be between 1 and 16.");
+        }
+
+        if (inputPrice is null != (outputPrice is null))
+        {
+            throw new ArgumentException("--input-price and --output-price must be given together.");
+        }
+
+        return new RunnerOptions(
+            dataset,
+            output,
+            report ?? Path.ChangeExtension(output, ".report.json"),
+            dryRun,
+            maximumRepetitions,
+            provider,
+            model,
+            effort,
+            inputPrice is { } input && outputPrice is { } outputRate
+                ? new ProviderPricing(input, outputRate)
+                : null,
+            concurrency,
+            apiKeyFile);
     }
+}
+
+internal sealed record EvaluationRunRecord
+{
+    public required string SuiteId { get; init; }
+    public required string CaseId { get; init; }
+    public required string Family { get; init; }
+    public required int Run { get; init; }
+    public required DateTimeOffset StartedAt { get; init; }
+    public required string ContractId { get; init; }
+    public required string ContractVersion { get; init; }
+    public required string ExpectedBehavior { get; init; }
+    public string? ExpectedDisposition { get; init; }
+    public DecisionEvaluationResponse? Response { get; init; }
+    public GateDecisionRecord? ActionDecision { get; init; }
+
+    /// <summary>
+    /// Null when the case carries no disposition label or the call failed; otherwise
+    /// whether the gate produced the labelled decision.
+    /// </summary>
+    public bool? DispositionMatched { get; init; }
+
+    public required bool Passed { get; init; }
+    public required IReadOnlyList<string> ExpectationFailures { get; init; }
+    public string? Error { get; init; }
+    public required double DurationMilliseconds { get; init; }
+
+    public static EvaluationRunRecord FromResponse(
+        EvaluationSuiteDefinition suite,
+        EvaluationCaseDefinition testCase,
+        int run,
+        DateTimeOffset startedAt,
+        DecisionEvaluationResponse response)
+    {
+        var failures = EvaluateExpectations(testCase.Expectations, response.Answers);
+        var gateDecision = GateEvaluation.Evaluate(suite, testCase.State, response.Answers);
+        var dispositionMatched = testCase.ExpectedDisposition is { } expected && gateDecision is not null
+            ? string.Equals(gateDecision.Disposition, expected, StringComparison.Ordinal)
+            : (bool?)null;
+
+        return new EvaluationRunRecord
+        {
+            SuiteId = suite.Id,
+            CaseId = testCase.Id,
+            Family = testCase.Family,
+            Run = run,
+            StartedAt = startedAt,
+            ContractId = suite.Contract.Id,
+            ContractVersion = suite.Contract.Version,
+            ExpectedBehavior = testCase.ExpectedBehavior,
+            ExpectedDisposition = testCase.ExpectedDisposition,
+            Response = response,
+            ActionDecision = gateDecision,
+            DispositionMatched = dispositionMatched,
+            Passed = failures.Count == 0 && dispositionMatched is not false,
+            ExpectationFailures = failures,
+            DurationMilliseconds = response.Duration.TotalMilliseconds
+        };
+    }
+
+    public static EvaluationRunRecord FromFailure(
+        EvaluationSuiteDefinition suite,
+        EvaluationCaseDefinition testCase,
+        int run,
+        DateTimeOffset startedAt,
+        Exception exception) =>
+        new()
+        {
+            SuiteId = suite.Id,
+            CaseId = testCase.Id,
+            Family = testCase.Family,
+            Run = run,
+            StartedAt = startedAt,
+            ContractId = suite.Contract.Id,
+            ContractVersion = suite.Contract.Version,
+            ExpectedBehavior = testCase.ExpectedBehavior,
+            ExpectedDisposition = testCase.ExpectedDisposition,
+            Passed = false,
+            ExpectationFailures = [],
+            Error = exception.ToString(),
+            DurationMilliseconds = (DateTimeOffset.UtcNow - startedAt).TotalMilliseconds
+        };
 
     private static List<string> EvaluateExpectations(
         IReadOnlyDictionary<string, AnswerExpectation> expectations,
@@ -351,156 +444,114 @@ internal static class Program
 
         return failures;
     }
+}
 
-    private static void PrintNoulSummary(IEnumerable<EvaluationRunRecord> runs)
+internal static class EvaluationIo
+{
+    public static JsonSerializerOptions JsonOptions { get; } = new(JsonSerializerDefaults.Web)
     {
-        var groups = runs
-            .Where(record => record.Response!.Answers.TryGetValue("block_card_requested", out var answer) && answer is NoulAnswer)
-            .GroupBy(record => record.CaseId);
+        WriteIndented = false,
+        DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull,
+        Converters = { new JsonStringEnumConverter(JsonNamingPolicy.CamelCase) }
+    };
 
-        Console.WriteLine("\nblock_card_requested summary");
-        foreach (var group in groups)
-        {
-            var values = group
-                .Select(record => ((NoulAnswer)record.Response!.Answers["block_card_requested"]).Noul)
-                .ToArray();
-            var mean = values.Average();
-            var standardDeviation = Math.Sqrt(values.Average(value => Math.Pow(value - mean, 2)));
-            Console.WriteLine($"{group.Key}: n={values.Length}, mean={mean:F4}, min={values.Min():F4}, max={values.Max():F4}, sd={standardDeviation:F4}");
-        }
+    public static JsonSerializerOptions ReportJsonOptions { get; } = new(JsonOptions)
+    {
+        WriteIndented = true,
+        // A run where every call failed summarizes to NaN rather than no summary.
+        NumberHandling = JsonNumberHandling.AllowNamedFloatingPointLiterals
+    };
+
+    public static async Task<EvaluationSuiteDefinition> LoadSuiteAsync(string path)
+    {
+        await using var stream = File.OpenRead(path);
+        return await JsonSerializer.DeserializeAsync<EvaluationSuiteDefinition>(stream, JsonOptions)
+            ?? throw new JsonException($"Could not deserialize evaluation suite '{path}'.");
     }
+}
 
-    private static void PrintEvaluationReport(EvaluationReport report)
+internal static class EvaluationConsole
+{
+    public static void PrintReport(EvaluationReport report)
     {
+        ArgumentNullException.ThrowIfNull(report);
+
+        Console.WriteLine($"\n{report.ReportingQuestions.NoulQuestionId} summary");
+        foreach (var caseReport in report.Cases.Where(c => c.RequestedProbability is not null))
+        {
+            var summary = caseReport.RequestedProbability!;
+            Console.WriteLine(
+                $"{caseReport.CaseId}: n={summary.Count}, mean={summary.Mean:F4}, " +
+                $"min={summary.Minimum:F4}, max={summary.Maximum:F4}, sd={summary.PopulationStandardDeviation:F4}");
+        }
+
         Console.WriteLine("\npolicy and stability summary");
         foreach (var caseReport in report.Cases)
         {
             var dispositions = string.Join(
                 ", ",
                 caseReport.ActionDispositionCounts.Select(pair => $"{pair.Key}={pair.Value}"));
+            var accuracy = caseReport.DispositionAccuracy is { } value ? $"{value:P0}" : "-";
             Console.WriteLine(
-                $"{caseReport.CaseId}: actions=[{dispositions}], " +
+                $"{caseReport.CaseId}: expected={caseReport.ExpectedDisposition ?? "-"}, " +
+                $"actions=[{dispositions}], correct={accuracy}, " +
                 $"decisionFlip={caseReport.DecisionFlipDetected}, " +
                 $"choiceFlip={caseReport.PrimaryChoiceFlipDetected}");
         }
 
-        Console.WriteLine("\nmetamorphic comparisons");
-        foreach (var comparison in report.MetamorphicComparisons)
+        if (report.Accuracy is { } accuracyReport)
         {
             Console.WriteLine(
-                $"{comparison.RelationId}: {comparison.BaselineCaseId} -> {comparison.VariantCaseId}, " +
-                $"delta={comparison.AbsoluteMeanDelta:F4}, " +
-                $"decisionFlip={comparison.DecisionFlipDetected}, " +
-                $"choiceFlip={comparison.PrimaryChoiceFlipDetected}, " +
-                $"{(comparison.Passed ? "PASS" : "CHECK")}");
-        }
-    }
-}
-
-internal sealed record EvaluationSuiteDefinition
-{
-    public required string Id { get; init; }
-    public string? Description { get; init; }
-    public required DecisionContract Contract { get; init; }
-    public ActionPolicyDefinition? ActionPolicy { get; init; }
-    public required IReadOnlyList<EvaluationCaseDefinition> Cases { get; init; }
-    public IReadOnlyList<MetamorphicRelationDefinition> MetamorphicRelations { get; init; } =
-        [];
-}
-
-internal sealed record ActionPolicyDefinition
-{
-    public required string RequestQuestionId { get; init; }
-    public required string IntentQuestionId { get; init; }
-    public required string RequiredIntent { get; init; }
-    public required string MessageStateProperty { get; init; }
-    public double NegativeAtOrBelow { get; init; } = 0.25;
-    public double PositiveAtOrAbove { get; init; } = 0.75;
-    public double MinimumIntentConfidence { get; init; } = 0.8;
-}
-
-internal sealed record MetamorphicRelationDefinition
-{
-    public required string Id { get; init; }
-    public required string BaselineCaseId { get; init; }
-    public required IReadOnlyList<string> VariantCaseIds { get; init; }
-    public string QuestionId { get; init; } = "block_card_requested";
-    public double MaximumMeanDelta { get; init; } = 0.05;
-    public bool RequireSameDecisionBand { get; init; } = true;
-    public bool RequireSamePrimaryChoice { get; init; } = true;
-}
-
-internal sealed record EvaluationCaseDefinition
-{
-    public required string Id { get; init; }
-    public required string Family { get; init; }
-    public required JsonElement State { get; init; }
-    public required string ExpectedBehavior { get; init; }
-    public int Repetitions { get; init; } = 1;
-    public IReadOnlyDictionary<string, AnswerExpectation> Expectations { get; init; } =
-        new Dictionary<string, AnswerExpectation>();
-}
-
-internal sealed record AnswerExpectation
-{
-    public double? Minimum { get; init; }
-    public double? Maximum { get; init; }
-    public string? Choice { get; init; }
-    public double? MinimumConfidence { get; init; }
-}
-
-internal sealed record EvaluationRunRecord
-{
-    public required string SuiteId { get; init; }
-    public required string CaseId { get; init; }
-    public required string Family { get; init; }
-    public required int Run { get; init; }
-    public required DateTimeOffset StartedAt { get; init; }
-    public required string ContractId { get; init; }
-    public required string ContractVersion { get; init; }
-    public required string ExpectedBehavior { get; init; }
-    public DecisionEvaluationResponse? Response { get; init; }
-    public DestructiveActionDecision? ActionDecision { get; init; }
-    public required bool Passed { get; init; }
-    public required IReadOnlyList<string> ExpectationFailures { get; init; }
-    public string? Error { get; init; }
-    public required double DurationMilliseconds { get; init; }
-}
-
-internal sealed record RunnerOptions(string DatasetPath, string OutputPath, string ReportPath, bool DryRun)
-{
-    public static RunnerOptions Parse(string[] args)
-    {
-        var dataset = "evals/datasets/payment-card-block-negation-v1.json";
-        var output = $"artifacts/results/payment-card-block-negation-{DateTimeOffset.UtcNow:yyyyMMdd-HHmmss}.jsonl";
-        string? report = null;
-        var dryRun = false;
-
-        for (var index = 0; index < args.Length; index++)
-        {
-            switch (args[index])
+                $"\ndisposition accuracy (call-weighted): {accuracyReport.CorrectRuns}/{accuracyReport.LabelledRuns} " +
+                $"({accuracyReport.Accuracy:P2}) across {accuracyReport.LabelledCases} labelled cases");
+            if (report.CaseAccuracy is { } caseAccuracy)
             {
-                case "--dataset" when index + 1 < args.Length:
-                    dataset = args[++index];
-                    break;
-                case "--output" when index + 1 < args.Length:
-                    output = args[++index];
-                    break;
-                case "--report" when index + 1 < args.Length:
-                    report = args[++index];
-                    break;
-                case "--dry-run":
-                    dryRun = true;
-                    break;
-                default:
-                    throw new ArgumentException($"Unknown or incomplete argument '{args[index]}'.");
+                Console.WriteLine(
+                    $"disposition accuracy (per case, {caseAccuracy.Method}): " +
+                    $"{caseAccuracy.CorrectCases}/{caseAccuracy.LabelledCases} ({caseAccuracy.Accuracy:P2}); " +
+                    $"unsafe-allow cases: {caseAccuracy.UnsafeAllowCases}, " +
+                    $"over-blocked cases: {caseAccuracy.OverBlockedCases}, " +
+                    $"unstable cases: {caseAccuracy.UnstableCases}");
+            }
+            if (accuracyReport.UnsafeAllowRuns is { } unsafeAllows)
+            {
+                Console.WriteLine(
+                    $"unsafe '{accuracyReport.PermissiveDisposition}': {unsafeAllows} " +
+                    $"({accuracyReport.UnsafeAllowRate:P2}); " +
+                    $"over-blocked: {accuracyReport.OverBlockedRuns} ({accuracyReport.OverBlockedRate:P2})");
+            }
+
+            Console.WriteLine("confusion (expected -> observed):");
+            foreach (var (expected, observed) in accuracyReport.Confusion)
+            {
+                var detail = string.Join(", ", observed.Select(pair => $"{pair.Key}={pair.Value}"));
+                Console.WriteLine($"  {expected}: {detail}");
             }
         }
 
-        return new RunnerOptions(
-            dataset,
-            output,
-            report ?? Path.ChangeExtension(output, ".report.json"),
-            dryRun);
+        var latency = report.Latency;
+        Console.WriteLine(
+            $"\nlatency ms: p50={latency.P50:F0}, p95={latency.P95:F0}, " +
+            $"mean={latency.Mean:F0}, min={latency.Minimum:F0}, max={latency.Maximum:F0}");
+        Console.WriteLine(
+            $"tokens: input={report.InputTokens:N0}, output={report.OutputTokens:N0} " +
+            $"over {report.SuccessfulRuns:N0} successful runs");
+        Console.WriteLine(report.EstimatedCostUsd is { } cost
+            ? $"cost: ${cost:F4} total, ${report.CostPerDecisionUsd:F6} per decision"
+            : "cost: no published per-token price for this provider");
+
+        if (report.MetamorphicComparisons.Count > 0)
+        {
+            Console.WriteLine("\nmetamorphic comparisons");
+            foreach (var comparison in report.MetamorphicComparisons)
+            {
+                Console.WriteLine(
+                    $"{comparison.RelationId}: {comparison.BaselineCaseId} -> {comparison.VariantCaseId}, " +
+                    $"delta={comparison.AbsoluteMeanDelta:F4}, " +
+                    $"decisionFlip={comparison.DecisionFlipDetected}, " +
+                    $"choiceFlip={comparison.PrimaryChoiceFlipDetected}, " +
+                    $"{(comparison.Passed ? "PASS" : "CHECK")}");
+            }
+        }
     }
 }

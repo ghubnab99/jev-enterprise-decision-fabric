@@ -42,6 +42,19 @@ public sealed class FixtureDecisionProviderTests
         Assert.Equal(expected, Assert.IsType<NoulAnswer>(response.Answers["q"]).Noul);
     }
 
+    [Theory]
+    [InlineData("known", "jev-recorded")]
+    [InlineData("unknown", "fixture/fallback")]
+    public async Task FallbackAnswersCarryTheirOwnModelLabel(string text, string expectedModel)
+    {
+        var provider = new FixtureDecisionProvider(
+            [FixtureSet with { Model = "jev-recorded", FallbackModel = "fixture/fallback" }]);
+
+        var response = await provider.EvaluateAsync(Request(Contract, text));
+
+        Assert.Equal(expectedModel, response.Model);
+    }
+
     [Fact]
     public async Task UnregisteredContractIsRejected()
     {
