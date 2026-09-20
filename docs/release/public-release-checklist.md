@@ -1,8 +1,32 @@
 # Public-release checklist (v0.1.0)
 
-State at the time of writing: repository private, nothing tagged, nothing
-published. Items marked **decision** need the maintainer's approval before
-anyone acts on them.
+**The repository was made public on 2026-09-20.** At the time of this commit the
+`v0.1.0` tag and GitHub Release are still pending; everything else below is
+done. Items marked **decision** needed the maintainer's approval, and all of
+them have been taken.
+
+## Cutover, as performed on 2026-09-20
+
+- [x] Repository made **public**.
+- [x] Description set, and all 12 topics applied.
+- [x] **Projects off**; wiki and discussions off, issues on.
+- [x] **Dependabot alerts enabled.**
+- [x] **Private vulnerability reporting enabled**, immediately after the
+      repository went public — the channel `SECURITY.md` directs people to.
+- [x] **`main` protected**, requiring the `build-test` status check. The context
+      name was read from a successful run's check-runs rather than guessed.
+      Force pushes and branch deletion are blocked and conversation resolution
+      is required; no review approval is required, since this is a
+      solo-maintainer repository, and `enforce_admins` is off so an emergency
+      fix is still possible.
+- [x] Public surface verified anonymously: README, images, all documentation
+      links, Actions history, `LICENSE`, `SECURITY.md`, the description and the
+      topics.
+- [x] Secret, path and personal-information scan re-run against a fresh
+      anonymous clone of the public default branch: no credentials, no local
+      paths, no personal email addresses, one commit identity.
+- [ ] **Pending at this commit:** create the `v0.1.0` tag and publish the
+      GitHub Release.
 
 ## Verified
 
@@ -58,12 +82,10 @@ anyone acts on them.
 
       It stays unchanged for v0.1: editing a frozen dataset would break
       reproducibility against the committed runs and move a published number.
-- [ ] **decision — repository visibility.** Making it public is a one-way door
-      for the history as it stands.
-- [ ] **decision — tag and release.** `v0.1.0` from the release notes, once
-      this branch is merged.
-- [ ] **decision — enable private vulnerability reporting** in repository
-      settings, which is the channel `SECURITY.md` tells people to use.
+- [x] **Repository visibility — decided: public**, 2026-09-20.
+- [ ] **decision — tag and release.** `v0.1.0` from the release notes. Still
+      pending at this commit.
+- [x] **Private vulnerability reporting — enabled**, 2026-09-20.
 
 ## License — chosen: MIT
 
@@ -119,9 +141,9 @@ on, and branch protection on `main` requiring the `ci` check.
 1. ~~Approve the license, add `LICENSE`~~ — done; merge this branch.
 2. ~~Decide on the `ext-req-share-externally` case~~ — accepted for v0.1;
    replacement queued for the v0.2 dataset.
-3. Set the description and topics.
-4. Make the repository public.
-5. Confirm images and links render on the public page, and that the Actions tab
-   shows green runs.
-6. Tag `v0.1.0` and publish the release notes.
+3. ~~Set the description and topics~~ — done.
+4. ~~Make the repository public~~ — done 2026-09-20.
+5. ~~Confirm images and links render on the public page, and that the Actions
+   tab shows green runs~~ — verified anonymously.
+6. Tag `v0.1.0` and publish the release notes. **Next.**
 7. Only then, the launch post and any outreach.
