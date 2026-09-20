@@ -15,6 +15,7 @@
   <ItemGroup>
     <ProjectReference Include="..\..\evals\DecisionFabric.Evals\DecisionFabric.Evals.csproj" />
     <ProjectReference Include="..\..\samples\DecisionFabric.AgentActionGate.Api\DecisionFabric.AgentActionGate.Api.csproj" />
+    <ProjectReference Include="..\..\samples\DecisionFabric.Inspector\DecisionFabric.Inspector.csproj" />
     <ProjectReference Include="..\..\samples\DecisionFabric.PaymentDisputes.Api\DecisionFabric.PaymentDisputes.Api.csproj" />
     <ProjectReference Include="..\..\src\DecisionFabric.Core\DecisionFabric.Core.csproj" />
     <ProjectReference Include="..\..\src\DecisionFabric.Hosting\DecisionFabric.Hosting.csproj" />
