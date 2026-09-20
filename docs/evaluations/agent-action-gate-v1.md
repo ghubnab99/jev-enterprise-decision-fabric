@@ -422,6 +422,17 @@ Keys are read from `.secrets/typesafe.key` and `.secrets/anthropic.key`
 (gitignored) before the environment, so a benchmark key never has to be
 exported machine-wide.
 
+To read the same runs case by case rather than in aggregate, including the
+three layers for every recorded call:
+
+```bash
+dotnet run --project samples/DecisionFabric.Inspector
+```
+
+The [Decision Inspector](../../samples/DecisionFabric.Inspector) republishes
+the reports committed here rather than recomputing them, and refuses to start
+if the recorded calls stop agreeing with them.
+
 ## Pilot (before the label revision)
 
 From `evals/runs/agent-action-gate-jev-pilot-20260919.jsonl` (111 cases, one
