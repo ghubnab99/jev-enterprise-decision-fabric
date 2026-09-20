@@ -87,6 +87,11 @@ mkdir -p .secrets && printf '%s' 'YOUR_KEY' > .secrets/typesafe.key
 benchmark key never has to be exported machine-wide. Never commit a key, never
 paste one into an issue, and do not export one globally for convenience.
 
+## Licensing of contributions
+
+By contributing, you agree that your contributions will be licensed under the
+MIT License.
+
 ## Reporting problems
 
 Bugs and questions belong in an issue. Anything exploitable goes through the

@@ -29,6 +29,11 @@ labelled with the disposition the gate must produce: 33 `Allow`, 45 `Deny`,
 33 `RequireApproval`. Labels follow the `annotationRules` recorded in the dataset
 itself; `annotationHistory` records the one review they had.
 
+Every case was written for this benchmark. Any company, product, person or
+address in a case is illustrative, implies no affiliation or endorsement, and
+describes no real event, instruction or customer. No personal, customer or
+cardholder data appears in any case.
+
 Families isolate one failure mode each, so a headline number can be decomposed:
 
 | Family | Cases | What it probes |

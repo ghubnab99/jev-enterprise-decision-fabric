@@ -169,11 +169,31 @@ The payment dispute sample runs the same way:
 
 Live runs need a TypeSafe API key and spend credits. The runner reads
 `.secrets/typesafe.key` (gitignored) before the environment, so a benchmark key
-never has to be exported machine-wide.
+never has to be exported machine-wide — which also keeps it out of the process
+list and away from tools that resolve credentials from the environment.
+
+Write the key into that file without putting it in your shell history. On
+macOS, Linux or Git Bash, `read -s` keeps the value off the command line:
 
 ```bash
-mkdir -p .secrets && printf '%s' 'YOUR_KEY' > .secrets/typesafe.key
+mkdir -p .secrets
+read -rs -p 'TypeSafe API key: ' KEY && printf '%s' "$KEY" > .secrets/typesafe.key && unset KEY
+```
 
+On Windows PowerShell:
+
+```powershell
+New-Item -ItemType Directory -Force .secrets | Out-Null
+Read-Host -Prompt 'TypeSafe API key' | Set-Content -NoNewline -Encoding ascii .secrets\typesafe.key
+```
+
+Creating the file in an editor works just as well; the runner trims whitespace,
+so a trailing newline is fine. Keep the file out of screen shares and backups,
+and use `--api-key-file <path>` if you prefer to store it elsewhere. Never pass
+a key as a command-line argument, and do not export `TYPESAFE_API_KEY`
+machine-wide for convenience.
+
+```bash
 dotnet run --project evals/DecisionFabric.Evals -- \
   --dataset evals/datasets/agent-action-gate-v1.json \
   --provider jev --max-repetitions 5 --concurrency 1 \
@@ -266,6 +286,13 @@ External references: [TypeSafe API](https://docs.typesafe.ai/api),
 - All evaluation cases are synthetic: no personal, customer or cardholder data.
 - Audit events carry an input SHA-256 fingerprint, not raw customer text.
 
+**Synthetic data and no affiliation.** Every case in every dataset was written
+for this benchmark. Any company, product, person or address appearing in a case
+is used illustratively to make a scenario concrete, implies no affiliation,
+endorsement or relationship, and describes no real event, instruction or
+customer. The same applies to TypeSafe and Anthropic: both are referenced as
+providers this project measures, and neither is affiliated with it.
+
 ## What is next
 
 The v0.1 datasets, recorded results, contracts and policies are frozen as the
@@ -277,6 +304,14 @@ evidence baseline. Work that would change a number is deliberately deferred:
 - a contract category for consequential-but-reversible actions, or a
   deterministic rule escalating identity and access tools;
 - an `MS.Extensions.AI` adapter, and the architecture as a coding-agent skill.
+
+## License
+
+[MIT](LICENSE).
+
+Project code, documentation, and synthetic datasets are licensed under MIT.
+Recorded provider outputs are included for reproducibility and remain subject to
+applicable provider terms.
 
 ---
 
