@@ -84,15 +84,26 @@ public sealed class InspectionArchive
     }
 
     /// <summary>
-    /// The list view derives per-case correctness, unsafe allows and over-blocks, which a report
-    /// states only as totals. When a derivation disagrees with the report the archive refuses to
-    /// start, so the dashboard cannot quietly show different numbers from the committed report.
+    /// Two checks, both run before the archive will serve anything.
+    /// <para>
+    /// The recorded calls are scored independently -- how many matched the label, and which
+    /// disposition most of a case's runs reached -- and held against what the report says for
+    /// that case. This is what stops the JSONL and the report drifting apart.
+    /// </para>
+    /// <para>
+    /// The list view then derives per-case correctness, unsafe allows and over-blocks, which a
+    /// report states only as totals, and those counts are held against the totals. A failure in
+    /// either check throws, so the dashboard cannot quietly show different numbers from the
+    /// committed report.
+    /// </para>
     /// </summary>
     private void VerifyDerivationsAgainstReports(IReadOnlyList<LoadedLeg> legs)
     {
         var failures = new List<string>();
         foreach (var leg in legs)
         {
+            failures.AddRange(leg.CallsThatContradictTheReport());
+
             var rows = _rows
                 .Select(row => row.Legs.FirstOrDefault(entry => entry.LegId == leg.Summary.Id))
                 .OfType<CaseLegRowView>()
@@ -287,6 +298,59 @@ public sealed class InspectionArchive
 
         private IReadOnlyDictionary<string, IReadOnlyList<CallView>> Calls { get; }
 
+        /// <summary>
+        /// Scores the recorded calls without consulting the report, then names every case where
+        /// the two disagree. A report rebuilt from these calls has to reach the same place.
+        /// </summary>
+        public IEnumerable<string> CallsThatContradictTheReport()
+        {
+            foreach (var (caseId, reported) in ReportedCases.OrderBy(entry => entry.Key, StringComparer.Ordinal))
+            {
+                if (!Calls.TryGetValue(caseId, out var calls))
+                {
+                    yield return $"{Summary.Id} {caseId}: the report has the case, the calls do not";
+                    continue;
+                }
+
+                if (calls.Count != reported.SuccessfulRuns)
+                {
+                    yield return $"{Summary.Id} {caseId} calls: the file has {calls.Count}, " +
+                        $"the report says {reported.SuccessfulRuns}";
+                }
+
+                var correct = calls.Count(call => call.Correct);
+                if (correct != reported.CorrectDispositionRuns)
+                {
+                    yield return $"{Summary.Id} {caseId} correct calls: the calls give {correct}, " +
+                        $"the report says {reported.CorrectDispositionRuns}";
+                }
+
+                var majority = Majority(calls);
+                if (!string.Equals(majority, reported.MajorityDisposition, StringComparison.Ordinal))
+                {
+                    yield return $"{Summary.Id} {caseId} majority disposition: the calls give " +
+                        $"{majority ?? "a tie"}, the report says {reported.MajorityDisposition ?? "a tie"}";
+                }
+            }
+        }
+
+        /// <summary>The disposition most of a case's runs reached, or null when two tie.</summary>
+        private static string? Majority(IReadOnlyList<CallView> calls)
+        {
+            var counts = calls
+                .GroupBy(call => call.Disposition, StringComparer.Ordinal)
+                .Select(group => (Disposition: group.Key, Count: group.Count()))
+                .OrderByDescending(entry => entry.Count)
+                .ToList();
+
+            return counts.Count switch
+            {
+                0 => null,
+                1 => counts[0].Disposition,
+                _ => counts[0].Count == counts[1].Count ? null : counts[0].Disposition
+            };
+        }
+
         public CaseLegRowView? Row(DatasetCase item)
         {
             if (!ReportedCases.TryGetValue(item.CaseId, out var reported))
@@ -405,6 +469,12 @@ public sealed class InspectionArchive
             var decision = call.GetProperty("actionDecision");
             var usage = response.GetProperty("usage");
 
+            // Whether a call matched is derived from the two values shown beside it rather than
+            // read from the record's own dispositionMatched flag, so the detail view cannot
+            // display a disposition, a different label, and "matches the label" underneath.
+            var disposition = decision.GetProperty("disposition").GetString() ?? string.Empty;
+            var expected = call.GetProperty("expectedDisposition").GetString() ?? string.Empty;
+
             return new CallView(
                 call.GetProperty("run").GetInt32(),
                 response.GetProperty("model").GetString() ?? "unknown",
@@ -424,9 +494,9 @@ public sealed class InspectionArchive
                             .EnumerateArray()
                             .Select(reason => reason.GetString() ?? string.Empty)
                     ]),
-                decision.GetProperty("disposition").GetString() ?? string.Empty,
-                call.GetProperty("expectedDisposition").GetString() ?? string.Empty,
-                call.GetProperty("dispositionMatched").GetBoolean(),
+                disposition,
+                expected,
+                string.Equals(disposition, expected, StringComparison.Ordinal),
                 call.TryGetProperty("expectationFailures", out var failures)
                     ? [.. failures.EnumerateArray().Select(failure => failure.GetString() ?? string.Empty)]
                     : []);

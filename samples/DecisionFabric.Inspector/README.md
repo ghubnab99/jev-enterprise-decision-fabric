@@ -30,15 +30,28 @@ repository.
 over-blocks, latency and token counts are read from the committed reports as
 written, so the dashboard and CI cannot disagree.
 
-Three things a report states only as a total — which case was correct, which was
-an unsafe allow, which was over-blocked — are derived per case from the recorded
-calls. Those derivations are checked against the report's own totals at startup.
-If they disagree the app refuses to start and names the mismatch:
+Two checks run before it will serve anything.
+
+1. The recorded calls are scored independently — how many calls a case has, how
+   many matched the label, and which disposition most of its runs reached — and
+   held against what the report says for that case. This is what stops a JSONL
+   and its report drifting apart.
+2. The three things a report states only as totals — which case was correct,
+   which was an unsafe allow, which was over-blocked — are derived per case and
+   held against those totals.
+
+A failure in either throws, the app does not come up, and the message names the
+case:
 
 ```text
-The inspected runs no longer agree with their reports: jev correct cases:
-the calls give 100, the report says 101.
+The inspected runs no longer agree with their reports: jev ro-req-invoice-search
+correct calls: the calls give 4, the report says 5.
 ```
+
+Whether a call matched is derived from the disposition and the label shown
+beside it, not from the record's own `dispositionMatched` flag, so the detail
+view cannot show a disposition, a different label, and "matches the label"
+underneath.
 
 ## Finding the interesting cases
 

@@ -123,7 +123,7 @@ public sealed class InspectorArchiveTests
     [Fact]
     public void ArchiveRefusesToLoadWhenACountNoLongerMatchesItsReport()
     {
-        var staged = StageArchive(report =>
+        var staged = StageArchive(editJevReport: report =>
         {
             var caseAccuracy = report["caseAccuracy"]!.AsObject();
             caseAccuracy["correctCases"] = caseAccuracy["correctCases"]!.GetValue<int>() + 1;
@@ -144,6 +144,31 @@ public sealed class InspectorArchiveTests
     }
 
     [Fact]
+    public void ArchiveRefusesToLoadWhenARecordedCallContradictsItsReport()
+    {
+        // Flip one recorded disposition. The report still claims five correct calls for the case,
+        // so scoring the calls independently has to catch it.
+        var staged = StageArchive(editJevCalls: calls => calls
+            .Select((line, index) => index == 0
+                ? line.Replace("\"disposition\":\"Allow\"", "\"disposition\":\"Deny\"", StringComparison.Ordinal)
+                : line)
+            .ToList());
+
+        try
+        {
+            var error = Assert.Throws<InvalidOperationException>(
+                () => InspectionArchive.Load(Options(staged), staged));
+
+            Assert.Contains("ro-req-invoice-search correct calls", error.Message, StringComparison.Ordinal);
+            Assert.Contains("the calls give 4", error.Message, StringComparison.Ordinal);
+        }
+        finally
+        {
+            Directory.Delete(staged, recursive: true);
+        }
+    }
+
+    [Fact]
     public void ArchiveSaysWhichFileIsMissing()
     {
         var options = Options();
@@ -155,8 +180,13 @@ public sealed class InspectorArchiveTests
         Assert.Contains("not-a-dataset.json", error.Message, StringComparison.Ordinal);
     }
 
-    /// <summary>Copies the artifacts to a temporary root, letting a test alter one leg's report.</summary>
-    private static string StageArchive(Action<JsonNode> editJevReport)
+    /// <summary>
+    /// Copies the artifacts to a temporary root, letting a test alter the Jev leg's report, its
+    /// recorded calls, or both.
+    /// </summary>
+    private static string StageArchive(
+        Action<JsonNode>? editJevReport = null,
+        Func<IReadOnlyList<string>, IReadOnlyList<string>>? editJevCalls = null)
     {
         var staged = Path.Combine(Path.GetTempPath(), $"inspector-{Guid.NewGuid():N}");
         Directory.CreateDirectory(Path.Combine(staged, "datasets"));
@@ -177,10 +207,19 @@ public sealed class InspectorArchiveTests
             File.Copy(Path.Combine(EvalsRoot, "runs", name), Path.Combine(staged, "runs", name));
         }
 
-        var reportPath = Path.Combine(staged, "runs/agent-action-gate-jev.report.json");
-        var report = JsonNode.Parse(File.ReadAllText(reportPath))!;
-        editJevReport(report);
-        File.WriteAllText(reportPath, report.ToJsonString(new JsonSerializerOptions { WriteIndented = true }));
+        if (editJevReport is not null)
+        {
+            var reportPath = Path.Combine(staged, "runs/agent-action-gate-jev.report.json");
+            var report = JsonNode.Parse(File.ReadAllText(reportPath))!;
+            editJevReport(report);
+            File.WriteAllText(reportPath, report.ToJsonString(new JsonSerializerOptions { WriteIndented = true }));
+        }
+
+        if (editJevCalls is not null)
+        {
+            var callsPath = Path.Combine(staged, "runs/agent-action-gate-jev.jsonl");
+            File.WriteAllLines(callsPath, editJevCalls(File.ReadAllLines(callsPath)));
+        }
 
         return staged;
     }
